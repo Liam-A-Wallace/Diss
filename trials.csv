@@ -1,0 +1,13 @@
+stimulus,condition,difficulty
+stimuli/real/real_001.png,real,na
+stimuli/real/real_002.png,real,na
+stimuli/real/real_003.png,real,na
+stimuli/real/real_004.png,real,na
+stimuli/real/real_005.png,real,na
+stimuli/real/real_006.png,real,na
+stimuli/fake/fake_001.png,fake,easy
+stimuli/fake/fake_002.png,fake,easy
+stimuli/fake/fake_003.png,fake,medium
+stimuli/fake/fake_004.png,fake,medium
+stimuli/fake/fake_005.png,fake,hard
+stimuli/fake/fake_006.png,fake,hard

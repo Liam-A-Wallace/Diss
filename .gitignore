@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Experiment output (participant data — never commit)
+data/
+
+# PsychoPy artefacts
+*.psydat
+*.log
+
+# Stimulus media is generated/downloaded, not committed (see README)
+stimuli/
+
+# OS
+.DS_Store
