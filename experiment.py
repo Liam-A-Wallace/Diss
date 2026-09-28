@@ -1,135 +1,161 @@
-"""Study 1 experiment — fixation, face, real/fake response, confidence.
+"""Study 1 experiment - fixation, face, real/fake response, confidence.
 
 Run with: python experiment.py
 """
+
 import csv
 import os
+import sys
 
-from psychopy import core, data, event, gui, visual
+from psychopy import core, data, event, visual
 
+from config import (BG, BUTTON_Y, CONFIDENCE_LABELS, DATA_DIR, FULLSCREEN,
+                    IMAGE_POS, MUTED, PRACTICE_TRIALS, PROMPT_HEIGHT,
+                    PROMPT_POS, QuitExperiment, STIM_HEIGHT, TRIAL_NUMBER_HEIGHT,
+                    TRIAL_NUMBER_POS, TRIALS_CSV, WIN_SIZE)
 from gaze import GazeRecorder
+from screens import (info_screen, participant_screen, run_fixation, run_iti,
+                     wait_for_click)
+from ui import Button, make_fixation, text
 
 
-WIN_SIZE = (1280, 720)
-FULLSCREEN = False
-BACKGROUND = (-0.15, -0.15, -0.15)
-TEXT_COLOR = "white"
-
-FIXATION_DURATION = 0.7
-ITI_DURATION = 0.5
-STIM_HEIGHT = 0.62
-FEEDBACK_DURATION = 1.0
-PRACTICE_TRIALS = 2
-
-TRIALS_CSV = "trials.csv"
-DATA_DIR = "data"
-CONFIDENCE_LABELS = ["1", "2", "3", "4", "5"]
-
-
-class QuitExperiment(Exception):
-    pass
-
-
-def show_text_and_wait(win, text, keys=("space",)):
-    msg = visual.TextStim(win, text=text, color=TEXT_COLOR, height=0.05,
-                          wrapWidth=1.6)
-    msg.draw()
-    win.flip()
-    pressed = event.waitKeys(keyList=list(keys) + ["escape"])
-    return not (pressed and pressed[0] == "escape")
-
-
-def make_button(win, text, pos, size=(0.24, 0.12)):
-    rect = visual.Rect(win, size=size, pos=pos, fillColor=(0.25, 0.25, 0.25),
-                       lineColor="white", lineWidth=2)
-    label = visual.TextStim(win, text=text, pos=pos, color=TEXT_COLOR,
-                            height=0.045)
-    return rect, label
-
-
-def wait_for_click(win, mouse, buttons, prompt=None, extras=()):
-    prompt_stim = None
-    if prompt:
-        prompt_stim = visual.TextStim(win, text=prompt, color=TEXT_COLOR,
-                                      height=0.05, pos=(0, 0.40), wrapWidth=1.6)
-
-    def draw_screen():
-        if prompt_stim:
-            prompt_stim.draw()
-        for stim in extras:
-            stim.draw()
-        for rect, label, _ in buttons:
-            rect.draw()
-            label.draw()
-
-    # wait out a held button so the previous click doesn't carry over
-    mouse.clickReset()
-    for _ in range(120):
-        draw_screen()
-        win.flip()
-        if not mouse.getPressed()[0]:
-            break
-    event.clearEvents()
-
-    rt_clock = core.Clock()
-    while True:
-        if "escape" in event.getKeys(keyList=["escape"]):
-            raise QuitExperiment()
-        draw_screen()
-        for rect, label, value in buttons:
-            if mouse.isPressedIn(rect, buttons=[0]):
-                return value, rt_clock.getTime()
-        win.flip()
-
-
-def run_fixation(win, fixation):
-    fixation.draw()
-    win.flip()
-    core.wait(FIXATION_DURATION)
-
-
-def run_iti(win):
-    win.flip()
-    core.wait(ITI_DURATION)
-
-
-def run_trial(win, mouse, trial, fixation, classification_buttons,
-              confidence_buttons, gaze, feedback=False):
+#################### Trial ####################
+def run_trial(
+    win,
+    mouse,
+    trial,
+    fixation,
+    classification_buttons,
+    confidence_buttons,
+    gaze,
+    trial_index=0,
+    total_trials=0,
+    practice=False,
+):
     stim_path = trial["stimulus"]
     true_class = trial["condition"]
+
     trial_id = f"{true_class}:{os.path.basename(stim_path)}"
+    if practice:
+        trial_id = "practice_" + trial_id
+
+    # Load the image before fixation so nothing loads between fixation
+    # and stimulus onset.
+    image = visual.ImageStim(
+        win,
+        image=stim_path,
+        units="height",
+    )
+
+    # scale to STIM_HEIGHT, keeping the image's own aspect ratio
+    try:
+        w, h = image.size
+        image.size = (STIM_HEIGHT * w / h, STIM_HEIGHT)
+    except Exception:
+        image.size = (STIM_HEIGHT, STIM_HEIGHT)
+
+    image.pos = IMAGE_POS
+
+    photo_label = (
+        f"Practice {trial_index}"
+        if practice
+        else f"Photo {trial_index}"
+    )
+
+    counter = text(
+        win,
+        photo_label,
+        TRIAL_NUMBER_POS,
+        height=TRIAL_NUMBER_HEIGHT,
+        color=MUTED,
+        bold=True,
+        anchor_h="left",
+    )
 
     gaze.start_trial(trial_id)
     run_fixation(win, fixation)
 
-    image = visual.ImageStim(win, image=stim_path, units="height")
-    try:
-        ar_w, ar_h = image.aspectRatio
-        image.size = (STIM_HEIGHT * ar_w / ar_h, STIM_HEIGHT)
-    except Exception:
-        image.size = (STIM_HEIGHT, STIM_HEIGHT)
-    image.pos = (0, 0.08)
+    # Stage 1: view the face
+    ready_hint = text(
+        win,
+        "ENTER to continue",
+        (0, -0.465),
+        height=0.022,
+        color=MUTED,
+    )
+
+    win.mouseVisible = False
+    image.draw()
+    counter.draw()
+    ready_hint.draw()
+    win.flip()
+
+    pressed = event.waitKeys(
+        keyList=["return", "num_enter", "escape"]
+    )
+
+    if pressed and pressed[0] == "escape":
+        raise QuitExperiment()
+
+    # Stage 2: real / fake decision
+    decision_prompt = text(
+        win,
+        "Is this face real or AI-generated?",
+        PROMPT_POS,
+        height=PROMPT_HEIGHT,
+        bold=True,
+        wrap=1.6,
+    )
 
     response, rt_class = wait_for_click(
-        win, mouse, classification_buttons,
-        prompt="Is this face REAL or AI-GENERATED?",
-        extras=(image,),
+        win,
+        mouse,
+        classification_buttons,
+        extras=[counter, decision_prompt],
     )
+
     correct = 1 if response == true_class else 0
 
-    confidence, rt_conf = wait_for_click(
-        win, mouse, confidence_buttons,
-        prompt="How confident are you in your decision?\n"
-               "(1 = guessing, 5 = very sure)",
+    # Stage 3: confidence rating
+    conf_prompt = text(
+        win,
+        "How confident are you in your decision?",
+        (0, 0.30),
+        height=PROMPT_HEIGHT,
+        bold=True,
+        wrap=1.6,
     )
-    confidence = int(confidence)
 
-    if feedback:
-        fb = visual.TextStim(win, text="Correct!" if correct else "Incorrect",
-                             color=TEXT_COLOR, height=0.06)
-        fb.draw()
-        win.flip()
-        core.wait(FEEDBACK_DURATION)
+    # captions sit under the first and last confidence buttons
+    conf_left = text(
+        win,
+        "Guessing",
+        (confidence_buttons[0].shape.pos[0], -0.135),
+        height=0.03,
+        color=MUTED,
+    )
+
+    conf_right = text(
+        win,
+        "Very sure",
+        (confidence_buttons[-1].shape.pos[0], -0.135),
+        height=0.03,
+        color=MUTED,
+    )
+
+    confidence, rt_conf = wait_for_click(
+        win,
+        mouse,
+        confidence_buttons,
+        extras=[
+            counter,
+            conf_prompt,
+            conf_left,
+            conf_right,
+        ],
+    )
+
+    confidence = int(confidence)
 
     run_iti(win)
     gaze.stop_trial()
@@ -146,101 +172,241 @@ def run_trial(win, mouse, trial, fixation, classification_buttons,
     }
 
 
-def load_trials(path):
-    with open(path, newline="") as f:
-        return list(csv.DictReader(f))
+REQUIRED_COLUMNS = {"stimulus", "condition", "difficulty"}
 
 
+class StimulusError(Exception):
+    pass
+
+
+def load_and_verify_trials(csv_path):
+    if not os.path.exists(csv_path):
+        raise StimulusError(f"Trial file not found: '{csv_path}'")
+
+    trials = []
+    with open(csv_path, encoding="utf-8-sig", newline="") as f:
+        reader = csv.DictReader(f)
+
+        missing_cols = REQUIRED_COLUMNS - set(reader.fieldnames or [])
+        if missing_cols:
+            raise StimulusError(
+                f"CSV missing required columns: {missing_cols}. "
+                f"Found headers: {reader.fieldnames}"
+            )
+
+        missing_files = []
+        # header is row 1, so data starts at 2
+        for row_idx, row in enumerate(reader, start=2):
+            norm_path = os.path.normpath(row["stimulus"].strip())
+            row["stimulus"] = norm_path
+            if not os.path.isfile(norm_path):
+                missing_files.append((row_idx, norm_path))
+            trials.append(row)
+
+    if not trials:
+        raise StimulusError(f"Trial file '{csv_path}' contains no trial data.")
+
+    if missing_files:
+        details = "\n".join(f"  Row {row}: {path}" for row, path in missing_files[:5])
+        if len(missing_files) > 5:
+            details += f"\n  ... and {len(missing_files) - 5} more."
+        raise StimulusError(
+            f"Found {len(missing_files)} missing stimulus image(s):\n{details}"
+        )
+
+    return trials
+
+
+#################### Main ####################
 def main():
-    exp_info = {"participant": "001", "session": "001"}
-    dlg = gui.DlgFromDict(exp_info, title="Seeing the Fake",
-                          order=["participant", "session"])
-    if not dlg.OK:
+    try:
+        trial_rows = load_and_verify_trials(TRIALS_CSV)
+        print(f"[OK] Verified {len(trial_rows)} trials from '{TRIALS_CSV}'")
+    except StimulusError as err:
+        print(f"[ERROR] {err}", file=sys.stderr)
+        return
+
+    win = visual.Window(
+        size=WIN_SIZE,
+        fullscr=FULLSCREEN,
+        color=BG,
+        units="height",
+        useFBO=True,
+    )
+
+    try:
+        exp_info = participant_screen(win)
+
+    except QuitExperiment:
+        win.close()
         core.quit()
         return
 
     os.makedirs(DATA_DIR, exist_ok=True)
+
     base_name = os.path.join(
         DATA_DIR,
-        f"{exp_info['participant']}_{exp_info['session']}_{data.getDateStr()}")
+        f"{exp_info['participant']}_{exp_info['session']}_{data.getDateStr()}",
+    )
 
     this_exp = data.ExperimentHandler(
-        name="SeeingTheFake", version="0.1", extraInfo=exp_info,
-        savePickle=False, saveWideText=False, dataFileName=base_name)
+        name="SeeingTheFake",
+        version="0.2",
+        extraInfo=exp_info,
+        savePickle=False,
+        saveWideText=False,
+        dataFileName=base_name,
+    )
 
-    gaze = GazeRecorder(base_name + "_gaze.csv", exp_info["participant"])
+    gaze = GazeRecorder(
+        base_name + "_gaze.csv",
+        exp_info["participant"],
+    )
 
-    win = visual.Window(size=WIN_SIZE, fullscr=FULLSCREEN, color=BACKGROUND,
-                        units="height")
     mouse = event.Mouse(win=win)
-    fixation = visual.TextStim(win, text="+", color=TEXT_COLOR, height=0.08)
+    fixation = make_fixation(win)
 
-    real_rect, real_label = make_button(win, "REAL", pos=(-0.28, -0.35),
-                                        size=(0.3, 0.12))
-    fake_rect, fake_label = make_button(win, "FAKE", pos=(0.28, -0.35),
-                                        size=(0.3, 0.12))
     classification_buttons = [
-        (real_rect, real_label, "real"),
-        (fake_rect, fake_label, "fake"),
+        Button(
+            win, "REAL",
+            (-0.28, BUTTON_Y),
+            (0.34, 0.11),
+            "real",
+        ),
+        Button(
+            win, "FAKE",
+            (0.28, BUTTON_Y),
+            (0.34, 0.11),
+            "fake",
+        ),
     ]
 
-    confidence_buttons = []
-    for x, label in zip([-0.4, -0.2, 0.0, 0.2, 0.4], CONFIDENCE_LABELS):
-        rect, text = make_button(win, label, pos=(x, -0.25), size=(0.15, 0.12))
-        confidence_buttons.append((rect, text, label))
+    confidence_buttons = [
+        Button(
+            win,
+            label,
+            (x, -0.02),
+            (0.15, 0.15),
+            label,
+            text_height=0.055,
+        )
+        for x, label in zip(
+            [-0.42, -0.21, 0.0, 0.21, 0.42],
+            CONFIDENCE_LABELS,
+        )
+    ]
 
-    trial_rows = load_trials(TRIALS_CSV)
-    trials = data.TrialHandler(trial_rows, nReps=1, method="random",
-                               extraInfo=exp_info, name="trials")
+    trials = data.TrialHandler(
+        trial_rows,
+        nReps=1,
+        method="random",
+        extraInfo=exp_info,
+        name="trials",
+    )
+
     this_exp.addLoop(trials)
 
     try:
         gaze.start_session()
 
-        if not show_text_and_wait(
-                win,
-                "In this task you will see faces.\n\n"
-                "Decide whether each face is REAL or AI-GENERATED, then rate "
-                "your confidence.\n\n"
-                "Click the buttons to respond.\n\n"
-                "Press SPACE to continue.",
+        if not info_screen(
+            win,
+            "Welcome",
+            body=(
+                "You will see a series of faces. Some are photographs "
+                "of real people; others are AI-generated."
+            ),
+            steps=[
+                (
+                    "Look at the face",
+                    "A face will appear on its own. Take your time to look at it.",
+                ),
+                (
+                    "Make your decision",
+                    "Press ENTER when you are ready, then click REAL or FAKE.",
+                ),
+                (
+                    "Rate your confidence",
+                    "Click a number from 1 (guessing) to 5 (very sure).",
+                ),
+            ],
         ):
             raise QuitExperiment()
 
         if PRACTICE_TRIALS:
-            if not show_text_and_wait(
-                    win,
-                    "Practice:\n\n"
-                    "A few trials with feedback so you can get used to the "
-                    "task.\n\nPress SPACE to begin.",
+            if not info_screen(
+                win,
+                "Practice",
+                body=(
+                    "First, you will complete one practice trial to get used "
+                    "to the task.\n\nYou will not be told whether your answer "
+                    "is correct."
+                ),
+                footer="Press SPACE to begin",
             ):
                 raise QuitExperiment()
-            for row in trial_rows[:PRACTICE_TRIALS]:
-                run_trial(win, mouse, row, fixation, classification_buttons,
-                          confidence_buttons, gaze, feedback=True)
 
-        if not show_text_and_wait(
-                win,
-                "The main experiment is about to start.\n\n"
-                "There will be no feedback from now on.\n\n"
-                "Press SPACE to begin.",
+            for i, row in enumerate(
+                trial_rows[:PRACTICE_TRIALS]
+            ):
+                run_trial(
+                    win,
+                    mouse,
+                    row,
+                    fixation,
+                    classification_buttons,
+                    confidence_buttons,
+                    gaze,
+                    trial_index=i + 1,
+                    total_trials=PRACTICE_TRIALS,
+                    practice=True,
+                )
+
+        if not info_screen(
+            win,
+            "Ready?",
+            body=(
+                "The main task starts now.\n\nAs in the practice, you "
+                "will not receive feedback. Respond at your own pace "
+                "and go with your first impression."
+            ),
+            footer="Press SPACE to begin",
         ):
             raise QuitExperiment()
 
-        for trial in trials:
-            result = run_trial(win, mouse, trial, fixation,
-                               classification_buttons, confidence_buttons, gaze)
+        total_trials = trials.nTotal
+
+        for i, trial in enumerate(trials):
+            result = run_trial(
+                win,
+                mouse,
+                trial,
+                fixation,
+                classification_buttons,
+                confidence_buttons,
+                gaze,
+                trial_index=i + 1,
+                total_trials=total_trials,
+            )
+
             for key, value in result.items():
                 trials.addData(key, value)
+
             this_exp.nextEntry()
 
-        show_text_and_wait(
+        info_screen(
             win,
-            "Thank you for participating.\n\nPress SPACE to finish.",
+            "Thank you",
+            body=(
+                "You have completed the task.\n\nYour participation "
+                "is greatly appreciated."
+            ),
+            footer="Press SPACE to finish",
         )
 
     except QuitExperiment:
         pass
+
     finally:
         gaze.stop_session()
         this_exp.saveAsWideText(base_name + ".csv", delim=",")

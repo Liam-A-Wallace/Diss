@@ -17,26 +17,26 @@ SeeSo webcam SDK in a later version.
 
 Requires Python 3.10 or 3.11 (3.10 recommended for PsychoPy wheel compatibility).
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
 Or with conda:
 
-```bash
+```powershell
 conda create -n seeingthefake python=3.10
 conda activate seeingthefake
 pip install -r requirements.txt
 ```
 
-Note: running the experiment needs a display (it opens a window). Linux also
+Note: running the experiment needs a display (it opens a window). Windows also
 requires working OpenGL drivers.
 
 ## Running
 
-```bash
+```powershell
 # 1. Generate placeholder stimuli and the trial list (once, until a real
 #    dataset is selected)
 python make_placeholders.py

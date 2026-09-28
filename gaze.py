@@ -7,7 +7,7 @@ class GazeRecorder:
     def __init__(self, output_path, participant_id):
         self.output_path = output_path
         self.participant_id = participant_id
-        self._events = []
+        self._events = []  # buffered here, written once at session end
 
     def start_session(self):
         self._events.append(self._event("session_start"))
@@ -31,6 +31,7 @@ class GazeRecorder:
         self._write()
 
     def _event(self, name, trial_id=None):
+        # t is wall-clock seconds for now; SeeSo will supply proper timestamps
         return {
             "participant": self.participant_id,
             "t": round(time.time(), 4),

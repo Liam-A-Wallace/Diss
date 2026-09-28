@@ -6,10 +6,10 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 STIM_DIR = "stimuli"
 SIZE = (512, 512)
-N_REAL = 6
-FAKES_PER_DIFFICULTY = 2
+N_REAL = 2
+FAKES_PER_DIFFICULTY = 1
 
-DIFFICULTIES = ["easy", "medium", "hard"]
+DIFFICULTIES = ["easy", "hard"]
 
 
 def _font(size=28):
@@ -24,6 +24,7 @@ def _font(size=28):
 def _face_image(label, skin, artifact=None):
     img = Image.new("RGB", SIZE, (30, 30, 40))
 
+    # top-to-bottom gradient behind the face
     top, bottom = (70, 70, 90), (20, 20, 30)
     px = img.load()
     for y in range(SIZE[1]):
@@ -44,6 +45,7 @@ def _face_image(label, skin, artifact=None):
     draw.arc([220, 270, 292, 322], start=20, end=160,
              fill=(80, 40, 40), width=5)
 
+    # blur a patch of the face to stand in for an AI artefact
     if artifact:
         box, radius = artifact
         crop = img.crop(box).filter(ImageFilter.GaussianBlur(radius))
@@ -59,6 +61,7 @@ def main():
 
     rows = []
 
+    # real faces get a plain skin tone, fakes get a blur patch
     for i in range(1, N_REAL + 1):
         name = f"real_{i:03d}.png"
         path = os.path.join(STIM_DIR, "real", name)
