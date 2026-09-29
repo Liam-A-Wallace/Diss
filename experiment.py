@@ -9,9 +9,10 @@ import sys
 
 from psychopy import core, data, event, visual
 
-from config import (BG, BUTTON_Y, CONFIDENCE_LABELS, DATA_DIR, FULLSCREEN,
-                    IMAGE_POS, MUTED, PRACTICE_TRIALS, PROMPT_HEIGHT,
-                    PROMPT_POS, QuitExperiment, STIM_HEIGHT, TRIAL_NUMBER_HEIGHT,
+from config import (BG, BUTTON_Y, CAMERA_INDEX, CONFIDENCE_LABELS, DATA_DIR,
+                    FULLSCREEN, IMAGE_POS, MUTED, PRACTICE_TRIALS,
+                    PROMPT_HEIGHT, PROMPT_POS, QuitExperiment, SCREEN,
+                    SHOW_GAZE, STIM_HEIGHT, TRIAL_NUMBER_HEIGHT,
                     TRIAL_NUMBER_POS, TRIALS_CSV, WIN_SIZE)
 from gaze import GazeRecorder
 from screens import (info_screen, participant_screen, run_fixation, run_iti,
@@ -31,13 +32,10 @@ def run_trial(
     trial_index=0,
     total_trials=0,
     practice=False,
+    show_gaze=False,
 ):
     stim_path = trial["stimulus"]
     true_class = trial["condition"]
-
-    trial_id = f"{true_class}:{os.path.basename(stim_path)}"
-    if practice:
-        trial_id = "practice_" + trial_id
 
     # Load the image before fixation so nothing loads between fixation
     # and stimulus onset.
@@ -72,30 +70,52 @@ def run_trial(
         anchor_h="left",
     )
 
-    gaze.start_trial(trial_id)
+    # fixation is a visual attention anchor only - nothing is recorded yet
     run_fixation(win, fixation)
 
     # Stage 1: view the face
     ready_hint = text(
         win,
-        "ENTER to continue",
+        "ENTER or SPACE to continue",
         (0, -0.465),
         height=0.022,
         color=MUTED,
     )
 
+    gaze_dot = None
+    if show_gaze:
+        gaze_dot = visual.Circle(win, radius=0.012, fillColor="red",
+                                 lineColor=None)
+
+    # start recording as the face appears; the trigger stamps this trial's
+    # number as an onset marker in the gaze stream
     win.mouseVisible = False
-    image.draw()
-    counter.draw()
-    ready_hint.draw()
-    win.flip()
+    gaze.start_trial(trial_index)
 
-    pressed = event.waitKeys(
-        keyList=["return", "num_enter", "escape"]
-    )
+    while True:
+        image.draw()
+        counter.draw()
+        ready_hint.draw()
+        if gaze_dot is not None:
+            sample = gaze.poll()
+            if sample is not None:
+                px_x, px_y = sample
+                win_w, win_h = win.size  # screen pixels
+                x = (px_x / win_w - 0.5) * (win_w / win_h)
+                y = 0.5 - px_y / win_h
+                gaze_dot.pos = (x, y)
+                gaze_dot.draw()
+        win.flip()
 
-    if pressed and pressed[0] == "escape":
-        raise QuitExperiment()
+        keys = event.getKeys(keyList=["return", "num_enter", "space", "escape"])
+        if "escape" in keys:
+            raise QuitExperiment()
+        if any(key in keys for key in ("return", "num_enter", "space")):
+            break
+
+    # any advance key (ENTER/SPACE) pauses recording here, so the decision
+    # and confidence screens are not part of this stimulus's gaze trace
+    gaze.stop_trial()
 
     # Stage 2: real / fake decision
     decision_prompt = text(
@@ -158,7 +178,6 @@ def run_trial(
     confidence = int(confidence)
 
     run_iti(win)
-    gaze.stop_trial()
 
     return {
         "stimulus": stim_path,
@@ -219,6 +238,10 @@ def load_and_verify_trials(csv_path):
 
 #################### Main ####################
 def main():
+    show_gaze = SHOW_GAZE or "-demo" in sys.argv or "--demo" in sys.argv
+    if show_gaze:
+        print("[demo] gaze overlay ON")
+
     try:
         trial_rows = load_and_verify_trials(TRIALS_CSV)
         print(f"[OK] Verified {len(trial_rows)} trials from '{TRIALS_CSV}'")
@@ -226,9 +249,19 @@ def main():
         print(f"[ERROR] {err}", file=sys.stderr)
         return
 
+    # start the camera before the window exists so preview/calibration
+    # never fight PsychoPy's fullscreen GL context
+    gaze = GazeRecorder(camera_index=CAMERA_INDEX)
+    try:
+        gaze.start_session()
+    except Exception as err:
+        print(f"[ERROR] Gaze setup failed: {err}", file=sys.stderr)
+        return
+
     win = visual.Window(
         size=WIN_SIZE,
         fullscr=FULLSCREEN,
+        screen=SCREEN,
         color=BG,
         units="height",
         useFBO=True,
@@ -238,6 +271,7 @@ def main():
         exp_info = participant_screen(win)
 
     except QuitExperiment:
+        gaze.stop_session()
         win.close()
         core.quit()
         return
@@ -258,10 +292,7 @@ def main():
         dataFileName=base_name,
     )
 
-    gaze = GazeRecorder(
-        base_name + "_gaze.csv",
-        exp_info["participant"],
-    )
+    gaze.output_path = base_name + "_gaze.csv"
 
     mouse = event.Mouse(win=win)
     fixation = make_fixation(win)
@@ -307,8 +338,6 @@ def main():
     this_exp.addLoop(trials)
 
     try:
-        gaze.start_session()
-
         if not info_screen(
             win,
             "Welcome",
@@ -360,6 +389,7 @@ def main():
                     trial_index=i + 1,
                     total_trials=PRACTICE_TRIALS,
                     practice=True,
+                    show_gaze=show_gaze,
                 )
 
         if not info_screen(
@@ -387,6 +417,7 @@ def main():
                 gaze,
                 trial_index=i + 1,
                 total_trials=total_trials,
+                show_gaze=show_gaze,
             )
 
             for key, value in result.items():

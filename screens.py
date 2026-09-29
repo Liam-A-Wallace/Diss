@@ -187,17 +187,15 @@ def participant_screen(win, participant="001", session="001"):
         mouse_pos = mouse.getPos()
 
         if mouse.getPressed()[0]:
+            if btn_continue.contains(mouse_pos):
+                while mouse.getPressed()[0]:
+                    core.wait(0.01)
+                break
+
             for i, box in enumerate(box_shapes):
                 if box.contains(mouse_pos):
                     active = i
                     break
-
-            if btn_continue.contains(mouse_pos):
-                break
-
-            # pause and clear mouse so one click doesn't carry into the next screen
-            core.wait(0.12)
-            event.clearEvents(eventType="mouse")
 
         keys = event.getKeys()
 

@@ -2,14 +2,14 @@
 
 Minimal, git-friendly PsychoPy **Coder** experiment for the Study 1 core trial
 loop: fixation cross → face image → real/fake classification → confidence
-rating. Eye tracking is stubbed (see `gaze.py`) and will be replaced with the
-SeeSo webcam SDK in a later version.
+rating. Eye tracking is handled by GazeFollower (see `gaze.py`).
 
 ## Layout
 
 - `experiment.py` — main experiment script (window, instructions, trial loop, data saving)
-- `gaze.py` — `GazeRecorder` stub (SeeSo integration point)
+- `gaze.py` — `GazeRecorder` wrapper around the GazeFollower SDK
 - `make_placeholders.py` — generates placeholder face images + `trials.csv`
+- `config.py` / `ui.py` / `screens.py` — shared constants, drawing primitives, and screens
 - `trials.csv` — stimulus list (`stimulus`, `condition`, `difficulty`)
 - `data/` — per-participant output (gitignored)
 
@@ -60,8 +60,18 @@ For each session, `data/` receives:
 - `<participant>_<session>_<date>.csv` — one row per trial with `stimulus`,
   `condition`, `difficulty`, `response`, `correct`, `rt_classification`,
   `confidence`, `rt_confidence`, plus participant/session metadata.
-- `<participant>_<session>_<date>_gaze.csv` — timestamped placeholder gaze events.
+- `<participant>_<session>_<date>_gaze.csv` — gaze stream from GazeFollower.
 - `<participant>_<session>_<date>.psydat` — PsychoPy pickle of the full run.
+
+## Eye tracking
+
+Gaze tracking uses [GazeFollower](https://github.com/Gancheng-Zhu/GazeFollower)
+(Zhu et al., 2025, "GazeFollower: An open-source system for deep learning-based
+gaze tracking with web cameras", ACM CGIT), licensed under
+CC BY-NC-SA 4.0. Use here is strictly non-commercial academic research.
+
+If you request the 32M base model from the authors, use a university email and
+state that it is for academic research only.
 
 ## Notes / next steps
 
@@ -69,4 +79,4 @@ For each session, `data/` receives:
   dissertation plan). `make_placeholders.py` also writes `trials.csv`; when a
   real dataset is curated, replace `stimuli/` and regenerate/edit `trials.csv`.
 - `stimuli/` and `data/` are gitignored.
-- Eye tracking: fill in the `TODO` sections of `gaze.py` with SeeSo SDK calls.
+- Eye tracking is handled by GazeFollower via `gaze.py`; no C++ wrapper needed.

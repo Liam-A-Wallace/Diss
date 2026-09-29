@@ -3,6 +3,9 @@
 
 WIN_SIZE = (1280, 720)
 FULLSCREEN = True
+SCREEN = 0          # which monitor PsychoPy uses (0 = primary)
+SHOW_GAZE = False   # demo: draw the live gaze point on screen
+CAMERA_INDEX = 1    # which webcam GazeFollower opens
 FONT = "Open Sans"
 
 # Palette (Soft Light / Paper Theme)

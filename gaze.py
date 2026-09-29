@@ -1,47 +1,69 @@
-"""Eye-tracker stub — SeeSo integration goes here later."""
+"""Eye-tracking wrapper — GazeFollower integration.
+
+GazeFollower (Gancheng Zhu et al., 2025) is licensed under CC BY-NC-SA 4.0.
+Use is non-commercial (academic research only). See README for attribution.
+"""
+
 import os
-import time
+
+import pygame
+
+from gazefollower import GazeFollower
+from gazefollower.camera import WebCamCamera
 
 
 class GazeRecorder:
-    def __init__(self, output_path, participant_id):
+    def __init__(self, output_path=None, camera_index=0):
         self.output_path = output_path
-        self.participant_id = participant_id
-        self._events = []  # buffered here, written once at session end
+        self.camera_index = camera_index
+        self.tracker = None
 
     def start_session(self):
-        self._events.append(self._event("session_start"))
-        # TODO: SeeSo init + calibration
+        # init + preview + calibrate before the PsychoPy window takes focus
+        self.tracker = GazeFollower(
+            camera=WebCamCamera(webcam_id=self.camera_index))
+        print("[GazeFollower] Launching camera preview...")
+        self.tracker.preview()
+        print("[GazeFollower] Starting calibration...")
+        self.tracker.calibrate()
 
-    def start_trial(self, trial_id):
-        self._events.append(self._event("trial_start", trial_id=trial_id))
-        # TODO: SeeSo trial onset timestamp
+        # GazeFollower's preview/calibrate leave pygame initialised, which
+        # makes PsychoPy's Mouse read pygame instead of the real window,
+        # breaking mouse clicks. Tear pygame down before PsychoPy opens.
+        pygame.quit()
+
+    def start_trial(self, trigger):
+        if self.tracker:
+            self.tracker.start_sampling()
+            self.tracker.send_trigger(int(trigger))
 
     def poll(self):
-        # TODO: return latest gaze sample (x, y, confidence, t)
+        # live gaze point in screen pixels, for the debug overlay
+        if not self.tracker:
+            return None
+        info = self.tracker.get_gaze_info()
+        if info is None or not getattr(info, "status", False):
+            return None
+        for attr in ("calibrated_gaze_coordinates",
+                     "filtered_gaze_coordinates",
+                     "raw_gaze_coordinates"):
+            coords = getattr(info, attr, None)
+            if coords is not None and len(coords) >= 2:
+                return (float(coords[0]), float(coords[1]))
         return None
 
     def stop_trial(self):
-        self._events.append(self._event("trial_stop"))
-        # TODO: SeeSo flush trial buffer
+        if self.tracker:
+            self.tracker.stop_sampling()
 
     def stop_session(self):
-        self._events.append(self._event("session_stop"))
-        # TODO: SeeSo teardown
-        self._write()
-
-    def _event(self, name, trial_id=None):
-        # t is wall-clock seconds for now; SeeSo will supply proper timestamps
-        return {
-            "participant": self.participant_id,
-            "t": round(time.time(), 4),
-            "event": name,
-            "trial_id": trial_id or "",
-        }
-
-    def _write(self):
-        os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
-        with open(self.output_path, "w") as f:
-            f.write("participant,t,event,trial_id\n")
-            for e in self._events:
-                f.write("{participant},{t},{event},{trial_id}\n".format(**e))
+        if self.tracker:
+            # stop any in-flight sampling first, so the file is never saved
+            # while the camera thread is still writing (e.g. ESC mid-trial)
+            self.stop_trial()
+            if self.output_path:
+                os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
+                self.tracker.save_data(self.output_path)
+                print(f"[GazeFollower] Gaze data saved to {self.output_path}")
+            self.tracker.release()
+            self.tracker = None
