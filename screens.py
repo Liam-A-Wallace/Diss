@@ -271,9 +271,13 @@ def run_ready(win, fixation):
         keys = event.getKeys(keyList=["return", "num_enter", "space", "escape"])
         if "escape" in keys:
             raise QuitExperiment()
-        if floor.getTime() >= FIXATION_DURATION and any(
-            key in keys for key in ("return", "num_enter", "space")
-        ):
+
+        elapsed = floor.getTime()
+        # wait until the camera is actually producing gaze before the face
+        # can appear, so the dot and recording are live at image onset; the
+        # 15 s ceiling stops the screen hanging if gaze never stabilises
+        ready = (elapsed >= FIXATION_DURATION and overlay.has_gaze()) or elapsed >= 15.0
+        if ready and any(key in keys for key in ("return", "num_enter", "space")):
             break
 
 

@@ -78,6 +78,7 @@ def run_trial(
 
     # warm the camera behind the ready cross, then wait for the participant
     # to signal they are ready before the face (and recording) starts
+    overlay.reset()
     gaze.warm_up()
     run_ready(win, fixation)
     event.clearEvents()
@@ -246,13 +247,16 @@ def main():
         print(f"[ERROR] {err}", file=sys.stderr)
         return
 
-    # build the eye tracker (model load) before the window opens; camera
-    # preview + calibration run later, inside the PsychoPy window
+    # build the eye tracker and calibrate it in GazeFollower's own display
+    # BEFORE the PsychoPy window opens, so the two fullscreen contexts never
+    # overlap
     gaze = GazeRecorder(camera_index=CAMERA_INDEX)
     try:
         gaze.init()
+        gaze.calibrate()
     except Exception as err:
         print(f"[ERROR] Gaze setup failed: {err}", file=sys.stderr)
+        gaze.stop_session()
         return
 
     win = visual.Window(
@@ -293,6 +297,39 @@ def main():
 
     gaze.output_path = base_name + "_gaze.csv"
 
+    mouse = event.Mouse(win=win)
+    fixation = make_fixation(win)
+
+    classification_buttons = [
+        Button(
+            win, "REAL",
+            (-0.28, BUTTON_Y),
+            (0.34, 0.11),
+            "real",
+        ),
+        Button(
+            win, "FAKE",
+            (0.28, BUTTON_Y),
+            (0.34, 0.11),
+            "fake",
+        ),
+    ]
+
+    confidence_buttons = [
+        Button(
+            win,
+            label,
+            (x, -0.02),
+            (0.15, 0.15),
+            label,
+            text_height=0.055,
+        )
+        for x, label in zip(
+            [-0.42, -0.21, 0.0, 0.21, 0.42],
+            CONFIDENCE_LABELS,
+        )
+    ]
+
     trials = data.TrialHandler(
         trial_rows,
         nReps=1,
@@ -327,72 +364,6 @@ def main():
             ],
         ):
             raise QuitExperiment()
-
-        if not info_screen(
-            win,
-            "Calibration",
-            body=(
-                "Before we begin, the eye tracker needs to be calibrated.\n\n"
-                "Follow the dot with your eyes and try to keep your head "
-                "still."
-            ),
-            footer="Press ENTER or SPACE to start calibration",
-        ):
-            raise QuitExperiment()
-
-        # run calibration in GazeFollower's own fast standalone window; close
-        # the PsychoPy window first so the two GL contexts never fight
-        win.close()
-        core.wait(0.3)  # let the display release before pygame takes over
-        try:
-            gaze.calibrate()
-        except Exception as err:
-            print(f"[ERROR] Calibration failed: {err}", file=sys.stderr)
-            raise QuitExperiment()
-
-        # reopen the window and rebuild the window-bound stimuli
-        win = visual.Window(
-            size=WIN_SIZE,
-            fullscr=FULLSCREEN,
-            screen=SCREEN,
-            color=BG,
-            units="height",
-            useFBO=True,
-        )
-        overlay.setup(win, gaze, show_gaze)
-
-        mouse = event.Mouse(win=win)
-        fixation = make_fixation(win)
-
-        classification_buttons = [
-            Button(
-                win, "REAL",
-                (-0.28, BUTTON_Y),
-                (0.34, 0.11),
-                "real",
-            ),
-            Button(
-                win, "FAKE",
-                (0.28, BUTTON_Y),
-                (0.34, 0.11),
-                "fake",
-            ),
-        ]
-
-        confidence_buttons = [
-            Button(
-                win,
-                label,
-                (x, -0.02),
-                (0.15, 0.15),
-                label,
-                text_height=0.055,
-            )
-            for x, label in zip(
-                [-0.42, -0.21, 0.0, 0.21, 0.42],
-                CONFIDENCE_LABELS,
-            )
-        ]
 
         if PRACTICE_TRIALS:
             if not info_screen(

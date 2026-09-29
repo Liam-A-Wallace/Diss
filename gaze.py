@@ -21,32 +21,26 @@ class GazeRecorder:
         self.tracker = None
 
     def init(self):
-        # build the tracker (loads the gaze models); camera preview and
-        # calibration happen later, inside the PsychoPy window
+        # build the eye tracker (loads the gaze models) before the experiment
+        # window opens; preview and calibration are run later, in
+        # GazeFollower's own display, after the PsychoPy window is closed
         self.tracker = GazeFollower(
             camera=WebCamCamera(webcam_id=self.camera_index))
 
     def calibrate(self):
-        # run GazeFollower's own fast standalone preview + calibration in a
-        # borderless pygame window. NOFRAME (rather than fullscreen) avoids
-        # the display-mode handoff that leaves a black screen after the
-        # PsychoPy window closes.
+        # let GazeFollower create and manage its own display, exactly as its
+        # documented API expects (preview() / calibrate() with no surface)
         if not self.tracker:
             return
 
-        pygame.quit()          # clean slate after the PsychoPy window closed
-        pygame.init()
-        size = self.tracker.screen_size.tolist()
-        win = pygame.display.set_mode(size, pygame.NOFRAME)
-        pygame.display.set_caption("GazeFollower Calibration")
-
         print("[GazeFollower] Launching camera preview...")
-        self.tracker.preview(win=win)
+        self.tracker.preview()
         print("[GazeFollower] Starting calibration...")
-        self.tracker.calibrate(win=win)
+        self.tracker.calibrate()
 
-        # the UI leaves pygame initialised; tear it down so PsychoPy's
-        # Mouse keeps reading the real window
+        # GazeFollower's preview/calibrate initialise pygame, which makes
+        # PsychoPy's Mouse read pygame instead of the real window and breaks
+        # mouse clicks. Tear pygame down before the PsychoPy window opens.
         pygame.quit()
 
     def warm_up(self):

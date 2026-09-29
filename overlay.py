@@ -32,13 +32,15 @@ def setup(win, gaze, enabled):
 
 def draw():
     global _last, _smooth
-    if not _enabled or _dot is None or _gaze is None:
+    if _gaze is None:
         return
 
+    # always poll so the latest gaze is tracked even when the dot is hidden
     sample = _gaze.poll()
     if sample is not None:
         _last = sample
-    if _last is None:
+
+    if not _enabled or _dot is None or _last is None:
         return
 
     px_x, px_y = _last
@@ -51,7 +53,20 @@ def draw():
         )
 
     win_w, win_h = _win.size
-    x = (_smooth[0] / win_w - 0.5) * (win_w / win_h)
-    y = 0.5 - _smooth[1] / win_h
+    # GazeFollower reports gaze in screen pixels with (0,0) at the top-left.
+    # PsychoPy's "height" units run -1..+1 vertically and -aspect..+aspect
+    # horizontally, so the factor of 2 maps a full screen width/height.
+    x = (_smooth[0] / win_w - 0.5) * 2.0 * (win_w / win_h)
+    y = (0.5 - _smooth[1] / win_h) * 2.0
     _dot.pos = (x, y)
     _dot.draw()
+
+
+def reset():
+    global _last, _smooth
+    _last = None
+    _smooth = None
+
+
+def has_gaze():
+    return _last is not None
