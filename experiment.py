@@ -11,11 +11,13 @@ from psychopy import core, data, event, visual
 
 from config import (BG, BUTTON_Y, CAMERA_INDEX, CONFIDENCE_LABELS, DATA_DIR,
                     FULLSCREEN, IMAGE_POS, MUTED, PRACTICE_TRIALS,
-                    PROMPT_HEIGHT, PROMPT_POS, QuitExperiment, SCREEN,
-                    SHOW_GAZE, STIM_HEIGHT, TRIAL_NUMBER_HEIGHT,
-                    TRIAL_NUMBER_POS, TRIALS_CSV, WIN_SIZE)
+                    PRACTICE_TRIGGER_OFFSET, PROMPT_HEIGHT, PROMPT_POS,
+                    QuitExperiment, SCREEN, SHOW_GAZE, STIM_HEIGHT,
+                    TRIAL_NUMBER_HEIGHT, TRIAL_NUMBER_POS, TRIALS_CSV, WIN_SIZE)
+import overlay
+
 from gaze import GazeRecorder
-from screens import (info_screen, participant_screen, run_fixation, run_iti,
+from screens import (info_screen, participant_screen, run_iti, run_ready,
                      wait_for_click)
 from ui import Button, make_fixation, text
 
@@ -32,10 +34,14 @@ def run_trial(
     trial_index=0,
     total_trials=0,
     practice=False,
-    show_gaze=False,
+    trigger=None,
 ):
     stim_path = trial["stimulus"]
     true_class = trial["condition"]
+
+    # unique label stamped into the gaze stream; practice gets a high
+    # offset so its data never collides with the numbered main trials
+    trigger_value = trigger if trigger is not None else trial_index
 
     # Load the image before fixation so nothing loads between fixation
     # and stimulus onset.
@@ -70,8 +76,11 @@ def run_trial(
         anchor_h="left",
     )
 
-    # fixation is a visual attention anchor only - nothing is recorded yet
-    run_fixation(win, fixation)
+    # warm the camera behind the ready cross, then wait for the participant
+    # to signal they are ready before the face (and recording) starts
+    gaze.warm_up()
+    run_ready(win, fixation)
+    event.clearEvents()
 
     # Stage 1: view the face
     ready_hint = text(
@@ -82,29 +91,16 @@ def run_trial(
         color=MUTED,
     )
 
-    gaze_dot = None
-    if show_gaze:
-        gaze_dot = visual.Circle(win, radius=0.012, fillColor="red",
-                                 lineColor=None)
-
-    # start recording as the face appears; the trigger stamps this trial's
-    # number as an onset marker in the gaze stream
+    # the face is about to appear; stamp this trial's number as the onset
+    # marker in the gaze stream (sampling was warmed up already)
     win.mouseVisible = False
-    gaze.start_trial(trial_index)
+    gaze.mark_trial(trigger_value)
 
     while True:
         image.draw()
         counter.draw()
         ready_hint.draw()
-        if gaze_dot is not None:
-            sample = gaze.poll()
-            if sample is not None:
-                px_x, px_y = sample
-                win_w, win_h = win.size  # screen pixels
-                x = (px_x / win_w - 0.5) * (win_w / win_h)
-                y = 0.5 - px_y / win_h
-                gaze_dot.pos = (x, y)
-                gaze_dot.draw()
+        overlay.draw()
         win.flip()
 
         keys = event.getKeys(keyList=["return", "num_enter", "space", "escape"])
@@ -181,6 +177,7 @@ def run_trial(
 
     return {
         "stimulus": stim_path,
+        "trigger": trigger_value,
         "condition": true_class,
         "difficulty": trial.get("difficulty", ""),
         "response": response,
@@ -249,11 +246,11 @@ def main():
         print(f"[ERROR] {err}", file=sys.stderr)
         return
 
-    # start the camera before the window exists so preview/calibration
-    # never fight PsychoPy's fullscreen GL context
+    # build the eye tracker (model load) before the window opens; camera
+    # preview + calibration run later, inside the PsychoPy window
     gaze = GazeRecorder(camera_index=CAMERA_INDEX)
     try:
-        gaze.start_session()
+        gaze.init()
     except Exception as err:
         print(f"[ERROR] Gaze setup failed: {err}", file=sys.stderr)
         return
@@ -266,6 +263,8 @@ def main():
         units="height",
         useFBO=True,
     )
+
+    overlay.setup(win, gaze, show_gaze)
 
     try:
         exp_info = participant_screen(win)
@@ -293,39 +292,6 @@ def main():
     )
 
     gaze.output_path = base_name + "_gaze.csv"
-
-    mouse = event.Mouse(win=win)
-    fixation = make_fixation(win)
-
-    classification_buttons = [
-        Button(
-            win, "REAL",
-            (-0.28, BUTTON_Y),
-            (0.34, 0.11),
-            "real",
-        ),
-        Button(
-            win, "FAKE",
-            (0.28, BUTTON_Y),
-            (0.34, 0.11),
-            "fake",
-        ),
-    ]
-
-    confidence_buttons = [
-        Button(
-            win,
-            label,
-            (x, -0.02),
-            (0.15, 0.15),
-            label,
-            text_height=0.055,
-        )
-        for x, label in zip(
-            [-0.42, -0.21, 0.0, 0.21, 0.42],
-            CONFIDENCE_LABELS,
-        )
-    ]
 
     trials = data.TrialHandler(
         trial_rows,
@@ -362,6 +328,72 @@ def main():
         ):
             raise QuitExperiment()
 
+        if not info_screen(
+            win,
+            "Calibration",
+            body=(
+                "Before we begin, the eye tracker needs to be calibrated.\n\n"
+                "Follow the dot with your eyes and try to keep your head "
+                "still."
+            ),
+            footer="Press ENTER or SPACE to start calibration",
+        ):
+            raise QuitExperiment()
+
+        # run calibration in GazeFollower's own fast standalone window; close
+        # the PsychoPy window first so the two GL contexts never fight
+        win.close()
+        core.wait(0.3)  # let the display release before pygame takes over
+        try:
+            gaze.calibrate()
+        except Exception as err:
+            print(f"[ERROR] Calibration failed: {err}", file=sys.stderr)
+            raise QuitExperiment()
+
+        # reopen the window and rebuild the window-bound stimuli
+        win = visual.Window(
+            size=WIN_SIZE,
+            fullscr=FULLSCREEN,
+            screen=SCREEN,
+            color=BG,
+            units="height",
+            useFBO=True,
+        )
+        overlay.setup(win, gaze, show_gaze)
+
+        mouse = event.Mouse(win=win)
+        fixation = make_fixation(win)
+
+        classification_buttons = [
+            Button(
+                win, "REAL",
+                (-0.28, BUTTON_Y),
+                (0.34, 0.11),
+                "real",
+            ),
+            Button(
+                win, "FAKE",
+                (0.28, BUTTON_Y),
+                (0.34, 0.11),
+                "fake",
+            ),
+        ]
+
+        confidence_buttons = [
+            Button(
+                win,
+                label,
+                (x, -0.02),
+                (0.15, 0.15),
+                label,
+                text_height=0.055,
+            )
+            for x, label in zip(
+                [-0.42, -0.21, 0.0, 0.21, 0.42],
+                CONFIDENCE_LABELS,
+            )
+        ]
+
         if PRACTICE_TRIALS:
             if not info_screen(
                 win,
@@ -371,7 +403,7 @@ def main():
                     "to the task.\n\nYou will not be told whether your answer "
                     "is correct."
                 ),
-                footer="Press SPACE to begin",
+                footer="Press ENTER or SPACE to begin",
             ):
                 raise QuitExperiment()
 
@@ -389,7 +421,7 @@ def main():
                     trial_index=i + 1,
                     total_trials=PRACTICE_TRIALS,
                     practice=True,
-                    show_gaze=show_gaze,
+                    trigger=PRACTICE_TRIGGER_OFFSET + i + 1,
                 )
 
         if not info_screen(
@@ -400,7 +432,7 @@ def main():
                 "will not receive feedback. Respond at your own pace "
                 "and go with your first impression."
             ),
-            footer="Press SPACE to begin",
+            footer="Press ENTER or SPACE to begin",
         ):
             raise QuitExperiment()
 
@@ -417,7 +449,6 @@ def main():
                 gaze,
                 trial_index=i + 1,
                 total_trials=total_trials,
-                show_gaze=show_gaze,
             )
 
             for key, value in result.items():
@@ -432,7 +463,7 @@ def main():
                 "You have completed the task.\n\nYour participation "
                 "is greatly appreciated."
             ),
-            footer="Press SPACE to finish",
+            footer="Press ENTER or SPACE to finish",
         )
 
     except QuitExperiment:

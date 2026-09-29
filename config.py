@@ -1,7 +1,7 @@
 """Configuration and shared constants for the experiment."""
 
 
-WIN_SIZE = (1280, 720)
+WIN_SIZE = (1920, 1080)   # native resolution of the experiment monitor
 FULLSCREEN = True
 SCREEN = 0          # which monitor PsychoPy uses (0 = primary)
 SHOW_GAZE = False   # demo: draw the live gaze point on screen
@@ -23,6 +23,14 @@ BTN_LINE = "#CCCCCC"   # Button borders
 FIXATION_DURATION = 0.7
 ITI_DURATION = 0.5
 PRACTICE_TRIALS = 1
+
+# Practice trials are stamped with this offset so their gaze data never
+# collides with the numbered main trials (which use 1, 2, 3, ...).
+PRACTICE_TRIGGER_OFFSET = 9000
+
+# Warm-up samples (recorded while the camera spins up behind the ready
+# cross) are stamped with this so they can be filtered out later.
+WARMUP_TRIGGER = 8000
 
 # Experiment layout.
 # PsychoPy uses height units, so the screen is roughly +/- 0.89 horizontally

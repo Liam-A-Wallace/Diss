@@ -6,10 +6,12 @@ from config import (ACCENT, BTN_FILL, BTN_HOVER, BTN_LINE, FIXATION_DURATION,
                     TEXT)
 from ui import Button, rounded_rect, text
 
+import overlay
+
 
 #################### Instruction screens ####################
 def info_screen(win, title, body=None, steps=None,
-                footer="Press SPACE to continue"):
+                footer="Press ENTER or SPACE to continue"):
     card = rounded_rect(
         win, (1.28, 0.84), (0, 0),
         radius=0.035, fill=PANEL, line=PANEL_LINE
@@ -78,12 +80,16 @@ def info_screen(win, title, body=None, steps=None,
         )
     )
 
-    for stim in stims:
-        stim.draw()
+    event.clearEvents()
+    while True:
+        for stim in stims:
+            stim.draw()
+        overlay.draw()
+        win.flip()
 
-    win.flip()
-    pressed = event.waitKeys(keyList=["space", "escape"])
-    return not (pressed and pressed[0] == "escape")
+        keys = event.getKeys(keyList=["space", "return", "num_enter", "escape"])
+        if keys:
+            return "escape" not in keys
 
 
 #################### Participant entry ####################
@@ -92,18 +98,43 @@ def participant_screen(win, participant="001", session="001"):
     labels = ("Participant ID", "Session")
     active = 0
 
-    card_size = (1.18, 0.74)
-    card_pos = (0, 0)
-
     field_width, field_height = 0.86, 0.08
     field_y_positions = [0.08, -0.10]
     label_offset_y = 0.058
 
-    # invisible rects, only used to hit-test which field gets clicked
-    box_shapes = [
-        visual.Rect(win, width=field_width, height=field_height, pos=(0.0, y), units="height")
-        for y in field_y_positions
-    ]
+    # static stimuli, created once so the form doesn't rebuild them every frame
+    card = rounded_rect(win, (1.18, 0.74), (0, 0), radius=0.035, fill=PANEL, line=PANEL_LINE)
+    header = text(win, "SEEING THE FAKE", (0, 0.285), height=0.019, color=MUTED, bold=True)
+    title = text(win, "Participant details", (0, 0.22), height=0.05, bold=True)
+    hint = text(
+        win, "TAB switch field   •   ENTER or SPACE continue   •   ESC quit",
+        (0, -0.325), height=0.020, color=MUTED
+    )
+
+    label_stims = []
+    field_boxes = []
+    value_stims = []
+    box_shapes = []
+    for y_box, label in zip(field_y_positions, labels):
+        label_stims.append(
+            text(win, label, (0.0, y_box + label_offset_y),
+                 height=0.024, color=MUTED,
+                 anchor_h="center", anchor_v="bottom")
+        )
+        field_boxes.append(
+            rounded_rect(win, (field_width, field_height), (0.0, y_box),
+                         radius=0.018, fill=BTN_FILL, line=BTN_LINE, line_width=2)
+        )
+        value_stims.append(
+            text(win, " ", (0.0, y_box + 0.004),
+                 height=0.038, color=TEXT, bold=True,
+                 anchor_h="center", anchor_v="center")
+        )
+        # invisible rect, only used to hit-test which field gets clicked
+        box_shapes.append(
+            visual.Rect(win, width=field_width, height=field_height,
+                        pos=(0.0, y_box), units="height")
+        )
 
     btn_continue = Button(
         win, "CONTINUE", (0.0, -0.25), (0.32, 0.08), value="continue", text_height=0.035
@@ -113,72 +144,24 @@ def participant_screen(win, participant="001", session="001"):
     win.mouseVisible = True
 
     def draw():
-        card = rounded_rect(
-            win, card_size, card_pos,
-            radius=0.035, fill=PANEL, line=PANEL_LINE
-        )
-
-        stims = [
-            card,
-            text(
-                win, "SEEING THE FAKE", (0, 0.285),
-                height=0.019, color=MUTED, bold=True
-            ),
-            text(
-                win, "Participant details", (0, 0.22),
-                height=0.05, bold=True
-            ),
-        ]
-
         mouse_pos = mouse.getPos()
+        card.draw()
+        header.draw()
+        title.draw()
 
-        for i, label in enumerate(labels):
-            y_box = field_y_positions[i]
-            y_label = y_box + label_offset_y
-            value = "".join(fields[i])
-
+        for i in range(len(labels)):
+            value_stims[i].text = "".join(fields[i]) or " "
             is_active = (i == active)
             is_hovered = box_shapes[i].contains(mouse_pos)
+            field_boxes[i].lineColor = ACCENT if is_active else (BTN_HOVER if is_hovered else BTN_LINE)
+            field_boxes[i].fillColor = BTN_HOVER if (is_active or is_hovered) else BTN_FILL
+            label_stims[i].draw()
+            field_boxes[i].draw()
+            value_stims[i].draw()
 
-            stims.append(
-                text(
-                    win, label, (0.0, y_label),
-                    height=0.024, color=MUTED,
-                    anchor_h="center", anchor_v="bottom"
-                )
-            )
-
-            line_color = ACCENT if is_active else (BTN_HOVER if is_hovered else BTN_LINE)
-            fill_color = BTN_HOVER if (is_active or is_hovered) else BTN_FILL
-
-            stims.append(
-                rounded_rect(
-                    win, (field_width, field_height), (0.0, y_box),
-                    radius=0.018, fill=fill_color, line=line_color, line_width=2
-                )
-            )
-
-            # the +0.004 nudges it down so it reads centred, not just measured
-            stims.append(
-                text(
-                    win, value or " ", (0.0, y_box + 0.004),
-                    height=0.038, color=TEXT, bold=True,
-                    anchor_h="center", anchor_v="center"
-                )
-            )
-
-        stims.append(
-            text(
-                win, "TAB switch field   •   ENTER continue   •   ESC quit",
-                (0, -0.325),
-                height=0.020, color=MUTED
-            )
-        )
-
-        for stim in stims:
-            stim.draw()
-
+        hint.draw()
         btn_continue.draw(hovered=btn_continue.contains(mouse_pos))
+        overlay.draw()
 
     while True:
         draw()
@@ -202,7 +185,7 @@ def participant_screen(win, participant="001", session="001"):
         if "escape" in keys:
             raise QuitExperiment()
 
-        if "return" in keys or "num_enter" in keys:
+        if any(key in keys for key in ("return", "num_enter", "space")):
             break
 
         if "tab" in keys:
@@ -229,6 +212,8 @@ def wait_for_click(win, mouse, buttons, extras=()):
 
         for button in buttons:
             button.draw(hovered is button)
+
+        overlay.draw()
 
     # RT is zeroed on the flip where this screen first appears.
     rt_clock = core.Clock()
@@ -262,14 +247,39 @@ def wait_for_click(win, mouse, buttons, extras=()):
             return hovered.value, rt_clock.getTime()
 
 
-def run_fixation(win, fixation):
+def run_ready(win, fixation):
+    # self-paced "ready" gate: show the fixation cross with a hint and wait
+    # for ENTER/SPACE, so the eye tracker has time to warm up before the face
     win.mouseVisible = False
-    fixation.draw()
-    win.flip()
-    core.wait(FIXATION_DURATION)
+    hint = text(
+        win,
+        "Press ENTER or SPACE when ready",
+        (0, -0.42),
+        height=0.024,
+        color=MUTED,
+    )
+
+    event.clearEvents()
+    floor = core.Clock()
+
+    while True:
+        fixation.draw()
+        hint.draw()
+        overlay.draw()
+        win.flip()
+
+        keys = event.getKeys(keyList=["return", "num_enter", "space", "escape"])
+        if "escape" in keys:
+            raise QuitExperiment()
+        if floor.getTime() >= FIXATION_DURATION and any(
+            key in keys for key in ("return", "num_enter", "space")
+        ):
+            break
 
 
 def run_iti(win):
     win.mouseVisible = False
-    win.flip()
-    core.wait(ITI_DURATION)
+    t = core.Clock()
+    while t.getTime() < ITI_DURATION:
+        overlay.draw()
+        win.flip()
