@@ -32,36 +32,41 @@ def setup(win, gaze, enabled):
 
 def draw():
     global _last, _smooth
+
     if _gaze is None:
         return
 
-    # always poll so the latest gaze is tracked even when the dot is hidden
     sample = _gaze.poll()
+
     if sample is not None:
         _last = sample
 
     if not _enabled or _dot is None or _last is None:
         return
 
-    px_x, px_y = _last
-    if _smooth is None:
-        _smooth = (px_x, px_y)
-    else:
-        _smooth = (
-            ALPHA * px_x + (1.0 - ALPHA) * _smooth[0],
-            ALPHA * px_y + (1.0 - ALPHA) * _smooth[1],
-        )
+    raw_gx, raw_gy = _last
 
     win_w, win_h = _win.size
-    # GazeFollower reports gaze in screen pixels with (0,0) at the top-left.
-    # PsychoPy's "height" units run -1..+1 vertically and -aspect..+aspect
-    # horizontally, so the factor of 2 maps a full screen width/height.
-    x = (_smooth[0] / win_w - 0.5) * 2.0 * (win_w / win_h)
-    y = (0.5 - _smooth[1] / win_h) * 2.0
-    _dot.pos = (x, y)
+
+    # GazeFollower uses screen pixels with (0, 0) at the
+    # top-left. Convert to PsychoPy's centred pixel coordinates.
+    px_x = raw_gx - win_w / 2
+    px_y = win_h / 2 - raw_gy
+
+    # Convert PsychoPy pixel coordinates to height units.
+    x = px_x / (win_h / 2)
+    y = px_y / (win_h / 2)
+
+    if _smooth is None:
+        _smooth = (x, y)
+    else:
+        _smooth = (
+            ALPHA * x + (1.0 - ALPHA) * _smooth[0],
+            ALPHA * y + (1.0 - ALPHA) * _smooth[1],
+        )
+
+    _dot.pos = _smooth
     _dot.draw()
-
-
 def reset():
     global _last, _smooth
     _last = None
