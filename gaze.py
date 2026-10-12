@@ -6,9 +6,17 @@ Use is non-commercial (academic research only). See README for attribution.
 
 import csv
 import os
+import sys
 import time
 
 import pygame
+
+# Import GazeFollower from the local checkout (not any pip-installed copy) so
+# the model weights shipped in this repo are the ones actually loaded.
+_WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_GAZEFOLLOWER_DIR = os.path.join(_WORKSPACE_ROOT, "GazeFollower")
+if _GAZEFOLLOWER_DIR not in sys.path:
+    sys.path.insert(0, _GAZEFOLLOWER_DIR)
 
 from config import WARMUP_TRIGGER, CALIBRATION_POINTS
 from gazefollower import GazeFollower

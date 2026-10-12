@@ -6,10 +6,10 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 STIM_DIR = "stimuli"
 SIZE = (512, 512)
-N_REAL = 2
-FAKES_PER_DIFFICULTY = 1
+N_REAL = 6
+FAKES_PER_DIFFICULTY = 2
 
-DIFFICULTIES = ["easy", "hard"]
+DIFFICULTIES = ["easy", "medium", "hard"]
 
 
 def _font(size=28):

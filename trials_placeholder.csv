@@ -1,0 +1,13 @@
+stimulus,condition,difficulty,background
+stimuli\real\real_001.png,real,na,light
+stimuli\real\real_002.png,real,na,dark
+stimuli\real\real_003.png,real,na,light
+stimuli\real\real_004.png,real,na,dark
+stimuli\real\real_005.png,real,na,light
+stimuli\real\real_006.png,real,na,dark
+stimuli\fake\fake_001.png,fake,easy,light
+stimuli\fake\fake_002.png,fake,easy,dark
+stimuli\fake\fake_003.png,fake,medium,light
+stimuli\fake\fake_004.png,fake,medium,dark
+stimuli\fake\fake_005.png,fake,hard,light
+stimuli\fake\fake_006.png,fake,hard,dark
