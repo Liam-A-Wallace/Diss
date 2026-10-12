@@ -1,29 +1,57 @@
 """Study 1 experiment - fixation, face, real/fake response, confidence.
 
-Run with: python experiment.py
+Run with: python experiment.py [--demo] [--placeholder] [--test]
 """
 
-import csv
+import argparse
 import os
 import sys
+import time
 
 from psychopy import core, data, event, visual
 
-from config import (BG, BUTTON_Y, CAMERA_INDEX, CONFIDENCE_LABELS, DATA_DIR,
-                    FULLSCREEN, IMAGE_POS, MUTED, PLACEHOLDER_CSV,
-                    PRACTICE_TRIALS, PRACTICE_TRIGGER_OFFSET, PROMPT_HEIGHT,
-                    PROMPT_POS, QuitExperiment, RecalibrateRequest, SCREEN,
-                    SHOW_GAZE, STIM_HEIGHT, TRIAL_NUMBER_HEIGHT,
-                    TRIAL_NUMBER_POS, TRIALS_CSV, WIN_SIZE)
+from config import (BG, BREAK_AT_FRACTION, BUTTON_Y, CAMERA_INDEX,
+                    CHECKPOINT_EVERY, CONF_BUTTON_SPACING, CONF_BUTTON_Y,
+                    CONF_CAPTION_Y, CONF_PROMPT_POS, CONFIDENCE_LABELS,
+                    DATA_DIR, FULLSCREEN, GAZE_MIN_VALID_FRAC, IMAGE_POS,
+                    MUTED, PLACEHOLDER_CSV, PRACTICE_CSV, PRACTICE_TRIALS,
+                    PRACTICE_TRIGGER_OFFSET, PROMPT_HEIGHT, PROMPT_POS,
+                    SCREEN, SHOW_GAZE, STIM_HEIGHT, TRIAL_NUMBER_HEIGHT,
+                    TRIAL_NUMBER_POS, TRIALS_CSV, VIEW_HINT_POS, WIN_SIZE)
 import overlay
+import texts
 
+from errors import QuitExperiment, RecalibrateRequest, StimulusError
 from gaze import GazeRecorder
 from screens import (info_screen, participant_screen, run_iti, run_ready,
                      wait_for_click)
+from trials import load_and_verify_trials
 from ui import Button, make_fixation, text
 
 
 #################### Trial ####################
+def build_trial_stims(win, confidence_buttons):
+    """Text stimuli that never change between trials, built once."""
+    return {
+        "view_hint": text(win, "ENTER or SPACE to continue", VIEW_HINT_POS,
+                          height=0.022, color=MUTED),
+        "decision": text(win, "Is this face real or AI-generated?",
+                         PROMPT_POS, height=PROMPT_HEIGHT, bold=True,
+                         wrap=1.6),
+        "conf_prompt": text(win, "How confident are you in your decision?",
+                            CONF_PROMPT_POS, height=PROMPT_HEIGHT, bold=True,
+                            wrap=1.6),
+        # captions sit under the first and last confidence buttons
+        "conf_left": text(win, "Guessing",
+                          (confidence_buttons[0].shape.pos[0], CONF_CAPTION_Y),
+                          height=0.03, color=MUTED),
+        "conf_right": text(win, "Very sure",
+                           (confidence_buttons[-1].shape.pos[0],
+                            CONF_CAPTION_Y),
+                           height=0.03, color=MUTED),
+    }
+
+
 def run_trial(
     win,
     mouse,
@@ -31,17 +59,17 @@ def run_trial(
     fixation,
     classification_buttons,
     confidence_buttons,
+    stims,
     gaze,
     trial_index=0,
-    total_trials=0,
     practice=False,
     trigger=None,
 ):
     stim_path = trial["stimulus"]
     true_class = trial["condition"]
 
-    # unique label stamped into the gaze stream; practice gets a high
-    # offset so its data never collides with the numbered main trials
+    # unique label for the raw gaze stream; practice gets a high offset so it
+    # never collides with the numbered main trials
     trigger_value = trigger if trigger is not None else trial_index
 
     # Load the image before fixation so nothing loads between fixation
@@ -77,33 +105,30 @@ def run_trial(
         anchor_h="left",
     )
 
-    # warm the camera behind the ready cross, then wait for the participant
-    # to signal they are ready before the face (and recording) starts
+    # the camera is already sampling; the ready cross only gates on live gaze
+    # and measures drift before the face appears
     overlay.reset()
-    gaze.warm_up()
     overlay.show()
-    run_ready(win, fixation, gaze)
+    drift = run_ready(win, fixation, gaze)
     event.clearEvents()
 
-    # Stage 1: view the face
-    ready_hint = text(
-        win,
-        "ENTER or SPACE to continue",
-        (0, -0.465),
-        height=0.022,
-        color=MUTED,
-    )
-
-    # the face is about to appear; stamp this trial's number as the onset
-    # marker in the gaze stream (sampling was warmed up already)
+    # Stage 1: view the face. Onset/offset are stamped on the flips that put
+    # the image up and take it down, in the same epoch-ns clock as the gaze
+    # samples, so the window is exactly what the participant saw.
+    stamps = {}
     win.mouseVisible = False
     gaze.mark_trial(trigger_value)
+    dropped_before = win.nDroppedFrames
+    first_frame = True
 
     while True:
         image.draw()
         counter.draw()
-        ready_hint.draw()
+        stims["view_hint"].draw()
         overlay.draw()
+        if first_frame:
+            win.callOnFlip(lambda: stamps.setdefault("onset", time.time_ns()))
+            first_frame = False
         win.flip()
 
         keys = event.getKeys(keyList=["return", "num_enter", "space", "escape"])
@@ -112,67 +137,37 @@ def run_trial(
         if any(key in keys for key in ("return", "num_enter", "space")):
             break
 
-    # any advance key (ENTER/SPACE) pauses recording here, so the decision
-    # and confidence screens are not part of this stimulus's gaze trace
-    gaze.stop_trial()
+    # the image is still up until this next flip, so that flip is the offset
     overlay.hide()
+    win.callOnFlip(lambda: stamps.setdefault("offset", time.time_ns()))
+    win.flip()
+
+    onset_ns, offset_ns = stamps["onset"], stamps["offset"]
+    dropped = win.nDroppedFrames - dropped_before
+    gaze.record_window(trial_index, trigger_value, practice, true_class,
+                       stim_path, onset_ns, offset_ns)
+    n_samples, valid_frac = gaze.window_quality(onset_ns, offset_ns)
+    if valid_frac < GAZE_MIN_VALID_FRAC:
+        print(f"[gaze] trial {trial_index}: low quality "
+              f"({n_samples} samples, {valid_frac:.0%} valid)")
 
     # Stage 2: real / fake decision
-    decision_prompt = text(
-        win,
-        "Is this face real or AI-generated?",
-        PROMPT_POS,
-        height=PROMPT_HEIGHT,
-        bold=True,
-        wrap=1.6,
-    )
-
     response, rt_class = wait_for_click(
         win,
         mouse,
         classification_buttons,
-        extras=[counter, decision_prompt],
+        extras=[counter, stims["decision"]],
     )
 
     correct = 1 if response == true_class else 0
 
     # Stage 3: confidence rating
-    conf_prompt = text(
-        win,
-        "How confident are you in your decision?",
-        (0, 0.30),
-        height=PROMPT_HEIGHT,
-        bold=True,
-        wrap=1.6,
-    )
-
-    # captions sit under the first and last confidence buttons
-    conf_left = text(
-        win,
-        "Guessing",
-        (confidence_buttons[0].shape.pos[0], -0.135),
-        height=0.03,
-        color=MUTED,
-    )
-
-    conf_right = text(
-        win,
-        "Very sure",
-        (confidence_buttons[-1].shape.pos[0], -0.135),
-        height=0.03,
-        color=MUTED,
-    )
-
     confidence, rt_conf = wait_for_click(
         win,
         mouse,
         confidence_buttons,
-        extras=[
-            counter,
-            conf_prompt,
-            conf_left,
-            conf_right,
-        ],
+        extras=[counter, stims["conf_prompt"], stims["conf_left"],
+                stims["conf_right"]],
     )
 
     confidence = int(confidence)
@@ -182,6 +177,7 @@ def run_trial(
     return {
         "stimulus": stim_path,
         "trigger": trigger_value,
+        "is_practice": int(practice),
         "condition": true_class,
         "difficulty": trial.get("difficulty", ""),
         "response": response,
@@ -189,81 +185,90 @@ def run_trial(
         "rt_classification": round(rt_class, 4),
         "confidence": confidence,
         "rt_confidence": round(rt_conf, 4),
+        "view_time": round((offset_ns - onset_ns) / 1e9, 4),
+        "onset_ns": onset_ns,
+        "offset_ns": offset_ns,
+        "drift_px": "" if drift is None else round(drift, 1),
+        "gaze_samples": n_samples,
+        "gaze_valid_frac": round(valid_frac, 3),
+        "dropped_frames": dropped,
     }
 
 
-REQUIRED_COLUMNS = {"stimulus", "condition", "difficulty"}
-
-
-class StimulusError(Exception):
-    pass
-
-
-def load_and_verify_trials(csv_path):
-    if not os.path.exists(csv_path):
-        raise StimulusError(f"Trial file not found: '{csv_path}'")
-
-    trials = []
-    with open(csv_path, encoding="utf-8-sig", newline="") as f:
-        reader = csv.DictReader(f)
-
-        missing_cols = REQUIRED_COLUMNS - set(reader.fieldnames or [])
-        if missing_cols:
-            raise StimulusError(
-                f"CSV missing required columns: {missing_cols}. "
-                f"Found headers: {reader.fieldnames}"
-            )
-
-        missing_files = []
-        # header is row 1, so data starts at 2
-        for row_idx, row in enumerate(reader, start=2):
-            norm_path = os.path.normpath(row["stimulus"].strip())
-            row["stimulus"] = norm_path
-            if not os.path.isfile(norm_path):
-                missing_files.append((row_idx, norm_path))
-            trials.append(row)
-
-    if not trials:
-        raise StimulusError(f"Trial file '{csv_path}' contains no trial data.")
-
-    if missing_files:
-        details = "\n".join(f"  Row {row}: {path}" for row, path in missing_files[:5])
-        if len(missing_files) > 5:
-            details += f"\n  ... and {len(missing_files) - 5} more."
-        raise StimulusError(
-            f"Found {len(missing_files)} missing stimulus image(s):\n{details}"
-        )
-
-    return trials
-
-
-def _show_info(win, gaze, title, **kwargs):
+def _show_info(win, gaze, **kwargs):
     """Show an info screen; pressing R recalibrates and re-shows it."""
     while True:
         try:
-            return info_screen(win, title, **kwargs)
+            return info_screen(win, **kwargs)
         except RecalibrateRequest:
             gaze.recalibrate(win)
             event.clearEvents()
 
 
+def _run_trial_with_recal(win, gaze, **kwargs):
+    """Run a trial; if R is pressed on the ready cross, recalibrate and redo."""
+    while True:
+        try:
+            return run_trial(win, gaze=gaze, **kwargs)
+        except RecalibrateRequest:
+            gaze.recalibrate(win)
+            event.clearEvents()
+
+
+def _load_trials(use_placeholder):
+    """Returns (main_rows, practice_rows); practice never repeats a main image."""
+    if use_placeholder:
+        from make_placeholders import generate
+        trial_csv = generate(PLACEHOLDER_CSV)
+        print(f"[placeholder] generated trial list at '{trial_csv}'")
+    else:
+        trial_csv = TRIALS_CSV
+
+    rows = load_and_verify_trials(trial_csv)
+    print(f"[OK] Verified {len(rows)} trials from '{trial_csv}'")
+
+    practice = []
+    if PRACTICE_TRIALS:
+        if not use_placeholder and os.path.exists(PRACTICE_CSV):
+            practice = load_and_verify_trials(PRACTICE_CSV)[:PRACTICE_TRIALS]
+        else:
+            practice, rows = rows[:PRACTICE_TRIALS], rows[PRACTICE_TRIALS:]
+            print(f"[practice] no '{PRACTICE_CSV}' found; using the first "
+                  f"{len(practice)} trial(s) as practice, not repeated in "
+                  "the main task")
+        if not rows:
+            raise StimulusError("No trials left after reserving practice.")
+    return rows, practice
+
+
+def _checkpoint(this_exp, gaze, base_name):
+    try:
+        this_exp.saveAsWideText(base_name + ".csv", delim=",")
+    except Exception as err:
+        print(f"[checkpoint] trial data save failed: {err}", file=sys.stderr)
+    gaze.checkpoint()
+
+
+def _parse_args():
+    parser = argparse.ArgumentParser(description="Seeing the Fake - Study 1")
+    parser.add_argument("--demo", action="store_true",
+                        help="draw the live gaze point on screen")
+    parser.add_argument("--placeholder", action="store_true",
+                        help="generate and use placeholder stimuli")
+    parser.add_argument("--test", action="store_true",
+                        help="write output to data/test instead of data/")
+    return parser.parse_args()
+
+
 #################### Main ####################
 def main():
-    show_gaze = SHOW_GAZE or "-demo" in sys.argv or "--demo" in sys.argv
-    use_placeholder = "--placeholder" in sys.argv
+    args = _parse_args()
+    show_gaze = SHOW_GAZE or args.demo
     if show_gaze:
         print("[demo] gaze overlay ON")
 
     try:
-        if use_placeholder:
-            from make_placeholders import generate
-            trial_csv = generate(PLACEHOLDER_CSV)
-            print(f"[placeholder] generated trial list at '{trial_csv}'")
-        else:
-            trial_csv = TRIALS_CSV
-
-        trial_rows = load_and_verify_trials(trial_csv)
-        print(f"[OK] Verified {len(trial_rows)} trials from '{trial_csv}'")
+        trial_rows, practice_rows = _load_trials(args.placeholder)
     except StimulusError as err:
         print(f"[ERROR] {err}", file=sys.stderr)
         return
@@ -289,6 +294,9 @@ def main():
         useFBO=True,
     )
 
+    # needed for win.nDroppedFrames to count
+    win.recordFrameIntervals = True
+
     print("[PsychoPy] win.size =", win.size)
     print("[GazeFollower] screen size =", gaze.tracker.config.screen_size)
 
@@ -303,23 +311,27 @@ def main():
         core.quit()
         return
 
-    os.makedirs(DATA_DIR, exist_ok=True)
+    out_dir = os.path.join(DATA_DIR, "test") if args.test else DATA_DIR
+    os.makedirs(out_dir, exist_ok=True)
 
     base_name = os.path.join(
-        DATA_DIR,
+        out_dir,
         f"{exp_info['participant']}_{exp_info['session']}_{data.getDateStr()}",
     )
 
+    # stored with the data so the trial order can be reproduced
+    exp_info["seed"] = int(time.time()) % 1_000_000
+
     this_exp = data.ExperimentHandler(
         name="SeeingTheFake",
-        version="0.2",
+        version="0.3",
         extraInfo=exp_info,
         savePickle=False,
         saveWideText=False,
         dataFileName=base_name,
     )
 
-    gaze.output_path = base_name + "_gaze.csv"
+    gaze.set_output(base_name)
 
     mouse = event.Mouse(win=win)
     fixation = make_fixation(win)
@@ -339,152 +351,106 @@ def main():
         ),
     ]
 
+    # centred row of rating buttons, one per label
+    n_conf = len(CONFIDENCE_LABELS)
     confidence_buttons = [
         Button(
             win,
             label,
-            (x, -0.02),
+            ((i - (n_conf - 1) / 2) * CONF_BUTTON_SPACING, CONF_BUTTON_Y),
             (0.15, 0.15),
             label,
             text_height=0.055,
         )
-        for x, label in zip(
-            [-0.42, -0.21, 0.0, 0.21, 0.42],
-            CONFIDENCE_LABELS,
-        )
+        for i, label in enumerate(CONFIDENCE_LABELS)
     ]
+    stims = build_trial_stims(win, confidence_buttons)
 
-    trials = data.TrialHandler(
-        trial_rows,
-        nReps=1,
-        method="random",
-        extraInfo=exp_info,
-        name="trials",
+    trial_kwargs = dict(
+        mouse=mouse,
+        fixation=fixation,
+        classification_buttons=classification_buttons,
+        confidence_buttons=confidence_buttons,
+        stims=stims,
     )
 
-    this_exp.addLoop(trials)
+    total_trials = len(trial_rows)
+    break_after = (round(total_trials * BREAK_AT_FRACTION)
+                   if BREAK_AT_FRACTION and total_trials >= 2 else None)
 
     try:
-        if not _show_info(
-            win,
-            gaze,
-            "Welcome",
-            body=(
-                "You will see a series of faces. Some are photographs "
-                "of real people; others are AI-generated."
-            ),
-            steps=[
-                (
-                    "Look at the face",
-                    "A face will appear on its own. Take your time to look at it.",
-                ),
-                (
-                    "Make your decision",
-                    "Press ENTER when you are ready, then click REAL or FAKE.",
-                ),
-                (
-                    "Rate your confidence",
-                    "Click a number from 1 (guessing) to 5 (very sure).",
-                ),
-            ],
-        ):
+        if not _show_info(win, gaze, **texts.WELCOME):
             raise QuitExperiment()
 
-        if PRACTICE_TRIALS:
-            if not _show_info(
-                win,
-                gaze,
-                "Practice",
-                body=(
-                    "First, you will complete one practice trial to get used "
-                    "to the task.\n\nYou will not be told whether your answer "
-                    "is correct."
-                ),
-                footer="Press ENTER or SPACE to begin",
-            ):
+        # the camera now samples for the whole session; only the image
+        # windows are kept when the gaze file is written
+        gaze.start_sampling()
+
+        if practice_rows:
+            if not _show_info(win, gaze, **texts.PRACTICE):
                 raise QuitExperiment()
 
-            for i, row in enumerate(
-                trial_rows[:PRACTICE_TRIALS]
-            ):
-                while True:
-                    try:
-                        run_trial(
-                            win,
-                            mouse,
-                            row,
-                            fixation,
-                            classification_buttons,
-                            confidence_buttons,
-                            gaze,
-                            trial_index=i + 1,
-                            total_trials=PRACTICE_TRIALS,
-                            practice=True,
-                            trigger=PRACTICE_TRIGGER_OFFSET + i + 1,
-                        )
-                        break
-                    except RecalibrateRequest:
-                        gaze.recalibrate(win)
-                        event.clearEvents()
+            for i, row in enumerate(practice_rows):
+                result = _run_trial_with_recal(
+                    win, gaze,
+                    trial=row,
+                    trial_index=i + 1,
+                    practice=True,
+                    trigger=PRACTICE_TRIGGER_OFFSET + i + 1,
+                    **trial_kwargs,
+                )
+                for key, value in result.items():
+                    this_exp.addData(key, value)
+                this_exp.nextEntry()
 
-        if not _show_info(
-            win,
-            gaze,
-            "Ready?",
-            body=(
-                "The main task starts now.\n\nAs in the practice, you "
-                "will not receive feedback. Respond at your own pace "
-                "and go with your first impression."
-            ),
-            footer="Press ENTER or SPACE to begin",
-        ):
+        if not _show_info(win, gaze, **texts.READY):
             raise QuitExperiment()
 
-        total_trials = trials.nTotal
+        trials = data.TrialHandler(
+            trial_rows,
+            nReps=1,
+            method="random",
+            extraInfo=exp_info,
+            name="trials",
+            seed=exp_info["seed"],
+        )
+        this_exp.addLoop(trials)
 
         for i, trial in enumerate(trials):
-            while True:
-                try:
-                    result = run_trial(
-                        win,
-                        mouse,
-                        trial,
-                        fixation,
-                        classification_buttons,
-                        confidence_buttons,
-                        gaze,
-                        trial_index=i + 1,
-                        total_trials=total_trials,
-                    )
-                    break
-                except RecalibrateRequest:
-                    gaze.recalibrate(win)
-                    event.clearEvents()
+            result = _run_trial_with_recal(
+                win, gaze,
+                trial=trial,
+                trial_index=i + 1,
+                **trial_kwargs,
+            )
 
             for key, value in result.items():
                 trials.addData(key, value)
-
             this_exp.nextEntry()
 
-        _show_info(
-            win,
-            gaze,
-            "Thank you",
-            body=(
-                "You have completed the task.\n\nYour participation "
-                "is greatly appreciated."
-            ),
-            footer="Press ENTER or SPACE to finish",
-        )
+            if CHECKPOINT_EVERY and (i + 1) % CHECKPOINT_EVERY == 0:
+                _checkpoint(this_exp, gaze, base_name)
+
+            if break_after and i + 1 == break_after and i + 1 < total_trials:
+                if not _show_info(win, gaze, **texts.BREAK):
+                    raise QuitExperiment()
+
+        _show_info(win, gaze, **texts.THANKS)
 
     except QuitExperiment:
         pass
 
     finally:
-        gaze.stop_session()
-        this_exp.saveAsWideText(base_name + ".csv", delim=",")
-        this_exp.saveAsPickle(base_name + ".psydat")
-        this_exp.close()
+        # each step is isolated so one failure cannot skip the rest
+        for step in (gaze.stop_session,
+                     lambda: this_exp.saveAsWideText(base_name + ".csv",
+                                                     delim=","),
+                     lambda: this_exp.saveAsPickle(base_name + ".psydat"),
+                     this_exp.close):
+            try:
+                step()
+            except Exception as err:
+                print(f"[shutdown] {err}", file=sys.stderr)
         win.close()
         core.quit()
 

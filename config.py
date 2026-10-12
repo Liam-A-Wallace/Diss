@@ -38,15 +38,31 @@ BTN_LINE = "#CCCCCC"   # Button borders
 FIXATION_DURATION = 0.7
 ITI_DURATION = 0.5
 PRACTICE_TRIALS = 1
+PRACTICE_CSV = "practice.csv"  # optional; falls back to the first trials
 
 # Eye-tracker readiness gate (the "ready" cross).
 # GAZE_READY_WINDOW: a valid calibrated sample must have arrived within this
 #   many seconds for the tracker to count as "ready" (guards against stale
 #   samples when the camera briefly loses the participant).
-# READY_TIMEOUT: hard ceiling after which the ready screen advances even if
-#   gaze never stabilises, so the session can't hang indefinitely.
+# FACE_LOST_AFTER: seconds without valid gaze before the ready screen asks
+#   the participant to face the camera.
 GAZE_READY_WINDOW = 0.3
-READY_TIMEOUT = 15.0
+FACE_LOST_AFTER = 2.0
+
+# Drift check on the ready cross: median distance (px, in the tracker's
+# screen space) of the last DRIFT_WINDOW_S seconds of gaze from the cross.
+# Above DRIFT_WARN_PX the first ENTER shows a recalibrate prompt instead.
+DRIFT_WINDOW_S = 0.5
+DRIFT_WARN_PX = 100
+
+# Rest break after this fraction of the main trials (None disables).
+BREAK_AT_FRACTION = 0.5
+
+# Save progress every N main trials so a crash cannot lose the session.
+CHECKPOINT_EVERY = 5
+
+# A trial's gaze is flagged low quality below this fraction of valid samples.
+GAZE_MIN_VALID_FRAC = 0.7
 
 # Demo gaze dot smoothing.
 # GAZE_DOT_TAU: exponential-smoothing time constant in seconds. The dot eases
@@ -56,10 +72,6 @@ GAZE_DOT_TAU = 0.15
 # Practice trials are stamped with this offset so their gaze data never
 # collides with the numbered main trials (which use 1, 2, 3, ...).
 PRACTICE_TRIGGER_OFFSET = 9000
-
-# Warm-up samples (recorded while the camera spins up behind the ready
-# cross) are stamped with this so they can be filtered out later.
-WARMUP_TRIGGER = 8000
 
 # Experiment layout.
 # PsychoPy uses height units, so the screen is roughly +/- 0.89 horizontally
@@ -73,16 +85,13 @@ TRIAL_NUMBER_HEIGHT = 0.025
 PROMPT_POS = (0, 0.34)
 PROMPT_HEIGHT = 0.05
 BUTTON_Y = -0.38
+VIEW_HINT_POS = (0, -0.465)
+CONF_PROMPT_POS = (0, 0.30)
+CONF_CAPTION_Y = -0.135
+CONF_BUTTON_Y = -0.02
+CONF_BUTTON_SPACING = 0.21
 
 TRIALS_CSV = "trials.csv"
 PLACEHOLDER_CSV = "trials_placeholder.csv"
 DATA_DIR = "data"
 CONFIDENCE_LABELS = ["1", "2", "3", "4", "5"]
-
-
-class QuitExperiment(Exception):
-    pass
-
-
-class RecalibrateRequest(Exception):
-    pass

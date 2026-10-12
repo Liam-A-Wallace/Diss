@@ -14,6 +14,7 @@ data/
 
 # Stimulus media is generated/downloaded, not committed (see README)
 stimuli/
+trials_placeholder.csv
 
 # OS
 .DS_Store

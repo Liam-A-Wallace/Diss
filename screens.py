@@ -1,12 +1,22 @@
 """Instruction, participant-entry, and response screens."""
 from psychopy import core, event, visual
 
-from config import (ACCENT, BTN_FILL, BTN_HOVER, BTN_LINE, FIXATION_DURATION,
+import re
+
+from config import (ACCENT, BTN_FILL, BTN_HOVER, BTN_LINE, DRIFT_WARN_PX,
+                    DRIFT_WINDOW_S, FACE_LOST_AFTER, FIXATION_DURATION,
                     GAZE_READY_WINDOW, ITI_DURATION, MUTED, PANEL, PANEL_LINE,
-                    QuitExperiment, READY_TIMEOUT, RecalibrateRequest, TEXT)
+                    TEXT)
+from errors import QuitExperiment, RecalibrateRequest
 from ui import Button, rounded_rect, text
 
 import overlay
+
+
+def _safe_id(value, default):
+    # IDs become part of file names, so keep only filename-safe characters
+    cleaned = re.sub(r"[^A-Za-z0-9_-]", "", value.strip())
+    return cleaned or default
 
 
 #################### Instruction screens ####################
@@ -202,8 +212,8 @@ def participant_screen(win, participant="001", session="001"):
                 fields[active].append(key)
 
     return {
-        "participant": "".join(fields[0]).strip() or "001",
-        "session": "".join(fields[1]).strip() or "001",
+        "participant": _safe_id("".join(fields[0]), "001"),
+        "session": _safe_id("".join(fields[1]), "001"),
     }
 
 
@@ -251,8 +261,11 @@ def wait_for_click(win, mouse, buttons, extras=()):
 
 
 def run_ready(win, fixation, gaze):
-    # self-paced "ready" gate: show the fixation cross with a hint and wait
-    # for ENTER/SPACE, so the eye tracker has time to warm up before the face
+    """Self-paced ready cross. Returns the measured drift in px (or None).
+
+    Blocks until the tracker has fresh gaze. If gaze sits far from the cross,
+    the first ENTER shows a recalibrate prompt; a second ENTER continues.
+    """
     win.mouseVisible = False
     hint = text(
         win,
@@ -261,13 +274,42 @@ def run_ready(win, fixation, gaze):
         height=0.024,
         color=MUTED,
     )
+    status = text(win, " ", (0, -0.33), height=0.026, color=MUTED, bold=True)
+    # readiness ring: red until the tracker has a fresh lock, green when
+    # ENTER will actually advance to the face
+    ring = visual.Circle(
+        win,
+        radius=0.07,
+        units="height",
+        fillColor=None,
+        lineColor="red",
+        lineWidth=5,
+    )
 
     event.clearEvents()
     floor = core.Clock()
+    drift_warned = False
+    drift = None
 
     while True:
+        # a stale message is never shown: recomputed from the live state
+        if gaze.seconds_since_valid() > FACE_LOST_AFTER:
+            status.text = ("Eye tracker cannot see you — please face the "
+                           "camera and keep your head still")
+        elif drift_warned:
+            status.text = ("Gaze looks off-centre. Press R to recalibrate, "
+                           "or ENTER to continue anyway")
+        else:
+            status.text = " "
+
+        ready = (floor.getTime() >= FIXATION_DURATION
+                 and gaze.recent_gaze(GAZE_READY_WINDOW))
+        ring.lineColor = "green" if ready else "red"
+
+        ring.draw()
         fixation.draw()
         hint.draw()
+        status.draw()
         overlay.draw()
         win.flip()
 
@@ -277,16 +319,19 @@ def run_ready(win, fixation, gaze):
             raise QuitExperiment()
         if "r" in keys:
             raise RecalibrateRequest()
+        if not any(key in keys for key in ("return", "num_enter", "space")):
+            continue
 
-        elapsed = floor.getTime()
-        # wait until the camera is *currently* producing gaze (a fresh sample
-        # within GAZE_READY_WINDOW) before the face can appear, so the dot and
-        # recording are live at image onset; READY_TIMEOUT stops the screen
-        # hanging if gaze never stabilises.
-        ready = (elapsed >= FIXATION_DURATION
-                 and gaze.recent_gaze(GAZE_READY_WINDOW)) or elapsed >= READY_TIMEOUT
-        if ready and any(key in keys for key in ("return", "num_enter", "space")):
-            break
+        # only advance while the camera is currently producing gaze, so the
+        # recording is live at image onset
+        if not ready:
+            continue
+
+        drift = gaze.drift_px(DRIFT_WINDOW_S)
+        if drift is not None and drift > DRIFT_WARN_PX and not drift_warned:
+            drift_warned = True
+            continue
+        return drift
 
 
 def run_iti(win):

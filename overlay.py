@@ -102,11 +102,3 @@ def reset():
     _last = None
     _smooth = None
     _last_t = None
-
-
-def has_gaze():
-    # delegate to the recorder's fresh-sample check so the gate reflects the
-    # *current* tracking state, not a single historical sample.
-    if _gaze is None:
-        return False
-    return _gaze.recent_gaze()

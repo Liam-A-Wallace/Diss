@@ -1,3 +1,5 @@
 psychopy>=2024.2.0
 Pillow>=9.0.0
-gazefollower
+pygame
+opencv-python
+# gazefollower is imported from the local ../GazeFollower checkout (see gaze.py)

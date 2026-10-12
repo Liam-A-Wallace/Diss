@@ -121,7 +121,8 @@ def generate(csv_path="trials.csv"):
 
 
 def main():
-    csv_path = generate("trials.csv")
+    # never overwrite the real trials.csv
+    csv_path = generate("trials_placeholder.csv")
     n_fake = FAKES_PER_DIFFICULTY * len(DIFFICULTIES)
     print(f"Created {N_REAL + n_fake} placeholder images (alternating "
           f"light/dark) and wrote '{csv_path}' "

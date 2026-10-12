@@ -2,10 +2,18 @@
 
 GazeFollower (Gancheng Zhu et al., 2025) is licensed under CC BY-NC-SA 4.0.
 Use is non-commercial (academic research only). See README for attribution.
+
+The camera samples continuously for the whole session. Each image's on-screen
+window (flip-accurate onset/offset in epoch ns, the same clock the worker uses
+for sample timestamps) is recorded, and the raw stream is trimmed to those
+windows when the session ends.
 """
 
+import collections
 import csv
+import math
 import os
+import statistics
 import sys
 import time
 
@@ -19,7 +27,7 @@ if _GAZEFOLLOWER_DIR not in sys.path:
     sys.path.insert(0, _GAZEFOLLOWER_DIR)
 
 from config import (CALIBRATION_POINTS, CAMERA_EXPOSURE, ENABLE_FACE_FILTER,
-                    GAZE_FILTER, LOCK_CAMERA_EXPOSURE, WARMUP_TRIGGER)
+                    GAZE_FILTER, LOCK_CAMERA_EXPOSURE)
 from gazefollower import GazeFollower
 from gazefollower.camera import WebCamCamera
 from gazefollower.filter import HeuristicFilter, OneEuroFilter
@@ -28,9 +36,8 @@ from gazefollower.misc import DefaultConfig
 import gazefollower_patch
 gazefollower_patch.apply()
 
-# Header the sample CSV must carry so _forward_fill_trial_column can add a
-# 'trial' column later. The worker writes data rows without a header, so we
-# write this to the worker's temp sample file before sampling starts.
+# The worker appends rows with no header, so this is pre-written to its temp
+# sample file before sampling starts.
 SAMPLE_HEADER = (
     "timestamp,raw_gaze_position_x,raw_gaze_position_y,"
     "calibrated_gaze_position_x,calibrated_gaze_position_y,"
@@ -39,14 +46,76 @@ SAMPLE_HEADER = (
     "tracking_status,status,event,trigger\n"
 )
 
+WINDOW_FIELDS = ["trial", "trigger", "is_practice", "condition", "stimulus",
+                 "onset_ns", "offset_ns"]
+
+# column index of the per-sample "status" flag in SAMPLE_HEADER
+_STATUS_COL = 10
+_TAIL_BYTES = 1_000_000
+
+
+def load_windows(path):
+    with open(path, encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    for row in rows:
+        row["onset_ns"] = int(row["onset_ns"])
+        row["offset_ns"] = int(row["offset_ns"])
+    return rows
+
+
+def trim_gaze_file(raw_path, windows, out_path):
+    """Write only the raw samples inside an image window, tagged by trial.
+
+    Also usable after a crash: pair the raw copy with the windows sidecar.
+    Returns the number of rows written.
+    """
+    windows = sorted(windows, key=lambda w: w["onset_ns"])
+    written = 0
+    with open(raw_path, encoding="utf-8", newline="") as src:
+        reader = csv.DictReader(src)
+        fields = reader.fieldnames or []
+        if "timestamp" not in fields:
+            raise ValueError(f"'{raw_path}' has no header row")
+        extra = ["trial", "is_practice", "condition", "t_rel_ms"]
+        with open(out_path, "w", encoding="utf-8", newline="") as dst:
+            writer = csv.DictWriter(dst, fieldnames=fields + extra)
+            writer.writeheader()
+            idx = 0
+            for row in reader:
+                try:
+                    ts = int(row["timestamp"])
+                except (TypeError, ValueError):
+                    continue
+                while idx < len(windows) and ts > windows[idx]["offset_ns"]:
+                    idx += 1
+                if idx == len(windows):
+                    break
+                win = windows[idx]
+                if ts < win["onset_ns"]:
+                    continue
+                row["trial"] = win["trial"]
+                row["is_practice"] = win["is_practice"]
+                row["condition"] = win["condition"]
+                row["t_rel_ms"] = round((ts - win["onset_ns"]) / 1e6, 2)
+                writer.writerow(row)
+                written += 1
+    return written
+
 
 class GazeRecorder:
-    def __init__(self, output_path=None, camera_index=0):
-        self.output_path = output_path
+    def __init__(self, camera_index=0):
         self.camera_index = camera_index
+        self.output_path = None   # trimmed, image-window-only gaze
+        self.raw_path = None      # everything sampled this session
+        self.windows_path = None  # per-trial onset/offset sidecar
         self.tracker = None
-        # monotonic timestamp of the most recent valid calibrated sample
+        self._windows = []
+        self._sampling = False
+        # monotonic time of the most recent *new* valid sample
         self._last_valid_time = None
+        self._last_info_ts = None
+        # recent (monotonic, x, y) samples for the drift check
+        self._recent = collections.deque(maxlen=90)
         # resolution (width, height) of the coordinate space GazeFollower
         # reports calibrated gaze in; captured once after the tracker is built
         self.screen_size = None
@@ -78,6 +147,11 @@ class GazeRecorder:
             int(v) for v in self.tracker.config.screen_size)
         self._write_sample_header()
 
+    def set_output(self, base_name):
+        self.output_path = base_name + "_gaze.csv"
+        self.raw_path = base_name + "_gaze_raw.csv"
+        self.windows_path = base_name + "_windows.csv"
+
     def calibrate(self):
         # let GazeFollower create and manage its own display, exactly as its
         # documented API expects (preview() / calibrate() with no surface)
@@ -101,24 +175,33 @@ class GazeRecorder:
         if not self.tracker:
             return
 
-        self.stop_trial()
+        # the camera cannot calibrate while sampling, so pause and resume
+        was_sampling = self._sampling
+        self.stop_sampling()
         print("[GazeFollower] Recalibrating on PsychoPy window...")
-        self.tracker.calibrate(win=win)
+        try:
+            self.tracker.calibrate(win=win)
+        finally:
+            if was_sampling:
+                self.start_sampling()
 
-        # The old calibration is stale: clear the recent-gaze timestamp so
-        # the ready gate waits for fresh, post-calibration samples.
+        # the old calibration is stale; wait for fresh post-calibration samples
         self._last_valid_time = None
+        self._last_info_ts = None
+        self._recent.clear()
 
-    def warm_up(self):
-        # start the camera sampling so the pipeline is warm by the time the
-        # face appears; samples here are stamped WARMUP_TRIGGER and filtered
-        if self.tracker:
-            # arm the trigger first so the very first warm-up sample is tagged
-            self.tracker.send_trigger(WARMUP_TRIGGER)
+    def start_sampling(self):
+        if self.tracker and not self._sampling:
             self.tracker.start_sampling()
+            self._sampling = True
+
+    def stop_sampling(self):
+        if self.tracker and self._sampling:
+            self.tracker.stop_sampling()
+            self._sampling = False
 
     def mark_trial(self, trigger):
-        # stamp this trial's number onto the next sample (onset marker)
+        # cross-check marker in the raw stream; trimming uses the flip times
         if self.tracker:
             self.tracker.send_trigger(int(trigger))
 
@@ -137,41 +220,97 @@ class GazeRecorder:
             # produced a value yet
             coords = getattr(info, "calibrated_gaze_coordinates", None)
 
-        if coords is not None and len(coords) >= 2:
-            result = (float(coords[0]), float(coords[1]))
-            self._last_valid_time = time.monotonic()
+        if coords is None or len(coords) < 2:
+            return None
 
-            # if not hasattr(self, "_debug_count"):
-            #     self._debug_count = 0
-            #
-            # self._debug_count += 1
-            #
-            # if self._debug_count % 20 == 0:
-            #     print(
-            #         f"[GAZE {self._debug_count}] "
-            #         f"calibrated=({result[0]:.1f}, {result[1]:.1f})"
-            #     )
+        result = (float(coords[0]), float(coords[1]))
 
-            return result
+        # get_gaze_info keeps returning the last sample when the queue is
+        # empty, so only a changed timestamp counts as a fresh sample
+        ts = getattr(info, "timestamp", None)
+        if ts is None or ts != self._last_info_ts:
+            self._last_info_ts = ts
+            now = time.monotonic()
+            self._last_valid_time = now
+            self._recent.append((now, result[0], result[1]))
 
-        return None
+        return result
 
-    def recent_gaze(self, within=0.3):
-        # True only if a valid calibrated sample arrived within the last
-        # `within` seconds — i.e. the tracker is *currently* locked on the
-        # participant, not just that it produced one sample earlier.
+    def recent_gaze(self, within):
         if self._last_valid_time is None:
             return False
         return (time.monotonic() - self._last_valid_time) <= within
 
-    def stop_trial(self):
-        if self.tracker:
-            self.tracker.stop_sampling()
+    def seconds_since_valid(self):
+        if self._last_valid_time is None:
+            return math.inf
+        return time.monotonic() - self._last_valid_time
+
+    def drift_px(self, window_s):
+        # median distance of recent gaze from the screen centre (the cross)
+        if not self.screen_size:
+            return None
+        cx, cy = self.screen_size[0] / 2, self.screen_size[1] / 2
+        cutoff = time.monotonic() - window_s
+        dists = [math.hypot(x - cx, y - cy)
+                 for t, x, y in self._recent if t >= cutoff]
+        if len(dists) < 3:
+            return None
+        return statistics.median(dists)
+
+    def record_window(self, trial, trigger, is_practice, condition, stimulus,
+                      onset_ns, offset_ns):
+        row = {
+            "trial": trial, "trigger": trigger,
+            "is_practice": int(is_practice), "condition": condition,
+            "stimulus": stimulus, "onset_ns": onset_ns, "offset_ns": offset_ns,
+        }
+        self._windows.append(row)
+        if not self.windows_path:
+            return
+        new_file = not os.path.exists(self.windows_path)
+        with open(self.windows_path, "a", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=WINDOW_FIELDS)
+            if new_file:
+                writer.writeheader()
+            writer.writerow(row)
+
+    def window_quality(self, onset_ns, offset_ns):
+        # (n_samples, fraction_valid) for one image window, read from the
+        # tail of the live sample file
+        path = getattr(self.tracker, "_tmp_sample_path", None)
+        if not path or not os.path.exists(str(path)):
+            return 0, 0.0
+        try:
+            with open(str(path), "rb") as f:
+                f.seek(0, os.SEEK_END)
+                f.seek(max(0, f.tell() - _TAIL_BYTES))
+                lines = f.read().decode("utf-8", "ignore").splitlines()[1:]
+        except OSError:
+            return 0, 0.0
+        n = valid = 0
+        for line in lines:
+            parts = line.split(",")
+            if len(parts) <= _STATUS_COL:
+                continue
+            try:
+                ts = int(parts[0])
+            except ValueError:
+                continue
+            if onset_ns <= ts <= offset_ns:
+                n += 1
+                valid += parts[_STATUS_COL].strip() == "1"
+        return n, (valid / n if n else 0.0)
+
+    def checkpoint(self):
+        # copy the live sample stream out so a crash cannot lose it
+        if self.tracker and self.raw_path:
+            try:
+                self.tracker.save_data(self.raw_path)
+            except OSError as err:
+                print(f"[GazeFollower] checkpoint failed: {err}")
 
     def _write_sample_header(self):
-        # The worker appends rows to its temp sample file with no header
-        # row. Pre-write the header once so the CSV stays parseable and
-        # _forward_fill_trial_column can add the 'trial' column.
         path = getattr(self.tracker, "_tmp_sample_path", None)
         if not path:
             return
@@ -182,54 +321,25 @@ class GazeRecorder:
         with open(path, "a", encoding="utf-8") as f:
             f.write(SAMPLE_HEADER)
 
-    def _forward_fill_trial_column(self):
-        # GazeFollower stamps the trial number on a single onset row and
-        # leaves every other row 0. Carry that number forward into a 'trial'
-        # column so each row can be matched to its stimulus later.
-        if not self.output_path or not os.path.exists(self.output_path):
-            return
-
-        rows = []
-        with open(self.output_path, encoding="utf-8", newline="") as f:
-            reader = csv.DictReader(f)
-            fieldnames = reader.fieldnames or []
-
-            # Only run on a genuine header. Older recordings (or files written
-            # before the worker wrote a header) lack these columns, and treating
-            # a data row as the header would corrupt the file. Also skip if the
-            # trial column has already been added.
-            if (not fieldnames or "timestamp" not in fieldnames
-                    or "trigger" not in fieldnames or "trial" in fieldnames):
-                return
-
-            current = 0
-            for row in reader:
-                try:
-                    trig = int(float(row.get("trigger", "").strip() or 0))
-                except (TypeError, ValueError):
-                    trig = 0
-                if trig != 0:
-                    current = trig
-                row["trial"] = current
-                rows.append(row)
-
-        if not fieldnames:
-            return
-
-        with open(self.output_path, "w", encoding="utf-8", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames + ["trial"])
-            writer.writeheader()
-            writer.writerows(rows)
-
     def stop_session(self):
-        if self.tracker:
-            # stop any in-flight sampling first, so the file is never saved
-            # while the camera thread is still writing (e.g. ESC mid-trial)
-            self.stop_trial()
-            if self.output_path:
-                os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
-                self.tracker.save_data(self.output_path)
-                print(f"[GazeFollower] Gaze data saved to {self.output_path}")
-                self._forward_fill_trial_column()
+        if not self.tracker:
+            return
+        try:
+            # stop first so the file is never copied while still being written
+            self.stop_sampling()
+            if self.raw_path:
+                os.makedirs(os.path.dirname(self.raw_path) or ".",
+                            exist_ok=True)
+                self.tracker.save_data(self.raw_path)
+                print(f"[GazeFollower] Raw gaze data saved to {self.raw_path}")
+                if self._windows and os.path.exists(self.raw_path):
+                    n = trim_gaze_file(self.raw_path, self._windows,
+                                       self.output_path)
+                    print(f"[GazeFollower] {n} image-window samples "
+                          f"saved to {self.output_path}")
+        except Exception as err:
+            print(f"[GazeFollower] saving gaze data failed: {err}",
+                  file=sys.stderr)
+        finally:
             self.tracker.release()
             self.tracker = None
