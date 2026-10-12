@@ -45,6 +45,27 @@ python make_placeholders.py
 python experiment.py
 ```
 
+### Command-line flags
+
+`python experiment.py` accepts the following flags:
+
+| Flag | Effect |
+|------|--------|
+| `--demo` | Draw the live gaze point on screen (debug overlay). |
+| `--placeholder` | Generate placeholder stimuli on the fly and run on `trials_placeholder.csv` instead of `trials.csv` — useful while the real stimulus set is still being curated. |
+
+Flags can be combined, e.g.:
+
+```powershell
+python experiment.py --demo --placeholder
+```
+
+### Keyboard controls
+
+- **ENTER / SPACE** — continue / advance through screens.
+- **R** — recalibrate the eye tracker (on instruction and ready screens).
+- **ESC** — quit early (data collected so far is still saved).
+
 Enter a participant ID in the dialog, then:
 
 1. Read the instructions and press SPACE.
