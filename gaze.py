@@ -18,10 +18,26 @@ _GAZEFOLLOWER_DIR = os.path.join(_WORKSPACE_ROOT, "GazeFollower")
 if _GAZEFOLLOWER_DIR not in sys.path:
     sys.path.insert(0, _GAZEFOLLOWER_DIR)
 
-from config import WARMUP_TRIGGER, CALIBRATION_POINTS
+from config import (CALIBRATION_POINTS, CAMERA_EXPOSURE, ENABLE_FACE_FILTER,
+                    GAZE_FILTER, LOCK_CAMERA_EXPOSURE, WARMUP_TRIGGER)
 from gazefollower import GazeFollower
 from gazefollower.camera import WebCamCamera
+from gazefollower.filter import HeuristicFilter, OneEuroFilter
 from gazefollower.misc import DefaultConfig
+
+import gazefollower_patch
+gazefollower_patch.apply()
+
+# Header the sample CSV must carry so _forward_fill_trial_column can add a
+# 'trial' column later. The worker writes data rows without a header, so we
+# write this to the worker's temp sample file before sampling starts.
+SAMPLE_HEADER = (
+    "timestamp,raw_gaze_position_x,raw_gaze_position_y,"
+    "calibrated_gaze_position_x,calibrated_gaze_position_y,"
+    "filtered_gaze_position_x,filtered_gaze_position_y,"
+    "left_eye_openness,right_eye_openness,"
+    "tracking_status,status,event,trigger\n"
+)
 
 
 class GazeRecorder:
@@ -46,11 +62,21 @@ class GazeRecorder:
         # no effect.
         cfg = DefaultConfig()
         cfg.cali_mode = CALIBRATION_POINTS
+        cfg.enable_face_filter = ENABLE_FACE_FILTER
+        gaze_filter = (
+            OneEuroFilter() if GAZE_FILTER == "one_euro" else HeuristicFilter()
+        )
         self.tracker = GazeFollower(
-            camera=WebCamCamera(webcam_id=self.camera_index),
+            camera=WebCamCamera(
+                webcam_id=self.camera_index,
+                lock_exposure=LOCK_CAMERA_EXPOSURE,
+                exposure=CAMERA_EXPOSURE,
+            ),
+            gaze_filter=gaze_filter,
             config=cfg)
         self.screen_size = tuple(
             int(v) for v in self.tracker.config.screen_size)
+        self._write_sample_header()
 
     def calibrate(self):
         # let GazeFollower create and manage its own display, exactly as its
@@ -67,6 +93,21 @@ class GazeRecorder:
         # PsychoPy's Mouse read pygame instead of the real window and breaks
         # mouse clicks. Tear pygame down before the PsychoPy window opens.
         pygame.quit()
+
+    def recalibrate(self, win):
+        # Re-run calibration on the existing PsychoPy window. Passing the
+        # window makes GazeFollower use its psychopy backend, so no pygame
+        # fullscreen window is opened mid-experiment.
+        if not self.tracker:
+            return
+
+        self.stop_trial()
+        print("[GazeFollower] Recalibrating on PsychoPy window...")
+        self.tracker.calibrate(win=win)
+
+        # The old calibration is stale: clear the recent-gaze timestamp so
+        # the ready gate waits for fresh, post-calibration samples.
+        self._last_valid_time = None
 
     def warm_up(self):
         # start the camera sampling so the pipeline is warm by the time the
@@ -127,6 +168,20 @@ class GazeRecorder:
         if self.tracker:
             self.tracker.stop_sampling()
 
+    def _write_sample_header(self):
+        # The worker appends rows to its temp sample file with no header
+        # row. Pre-write the header once so the CSV stays parseable and
+        # _forward_fill_trial_column can add the 'trial' column.
+        path = getattr(self.tracker, "_tmp_sample_path", None)
+        if not path:
+            return
+        path = str(path)
+        if os.path.exists(path) and os.path.getsize(path) > 0:
+            return
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(SAMPLE_HEADER)
+
     def _forward_fill_trial_column(self):
         # GazeFollower stamps the trial number on a single onset row and
         # leaves every other row 0. Carry that number forward into a 'trial'
@@ -138,6 +193,15 @@ class GazeRecorder:
         with open(self.output_path, encoding="utf-8", newline="") as f:
             reader = csv.DictReader(f)
             fieldnames = reader.fieldnames or []
+
+            # Only run on a genuine header. Older recordings (or files written
+            # before the worker wrote a header) lack these columns, and treating
+            # a data row as the header would corrupt the file. Also skip if the
+            # trial column has already been added.
+            if (not fieldnames or "timestamp" not in fieldnames
+                    or "trigger" not in fieldnames or "trial" in fieldnames):
+                return
+
             current = 0
             for row in reader:
                 try:

@@ -3,7 +3,7 @@ from psychopy import core, event, visual
 
 from config import (ACCENT, BTN_FILL, BTN_HOVER, BTN_LINE, FIXATION_DURATION,
                     GAZE_READY_WINDOW, ITI_DURATION, MUTED, PANEL, PANEL_LINE,
-                    QuitExperiment, READY_TIMEOUT, TEXT)
+                    QuitExperiment, READY_TIMEOUT, RecalibrateRequest, TEXT)
 from ui import Button, rounded_rect, text
 
 import overlay
@@ -87,8 +87,11 @@ def info_screen(win, title, body=None, steps=None,
         overlay.draw()
         win.flip()
 
-        keys = event.getKeys(keyList=["space", "return", "num_enter", "escape"])
+        keys = event.getKeys(keyList=["space", "return", "num_enter",
+                                      "escape", "r"])
         if keys:
+            if "r" in keys:
+                raise RecalibrateRequest()
             return "escape" not in keys
 
 
@@ -253,7 +256,7 @@ def run_ready(win, fixation, gaze):
     win.mouseVisible = False
     hint = text(
         win,
-        "Press ENTER or SPACE when ready",
+        "Press ENTER or SPACE when ready   •   R to recalibrate",
         (0, -0.42),
         height=0.024,
         color=MUTED,
@@ -268,9 +271,12 @@ def run_ready(win, fixation, gaze):
         overlay.draw()
         win.flip()
 
-        keys = event.getKeys(keyList=["return", "num_enter", "space", "escape"])
+        keys = event.getKeys(keyList=["return", "num_enter", "space",
+                                      "escape", "r"])
         if "escape" in keys:
             raise QuitExperiment()
+        if "r" in keys:
+            raise RecalibrateRequest()
 
         elapsed = floor.getTime()
         # wait until the camera is *currently* producing gaze (a fresh sample

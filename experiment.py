@@ -10,10 +10,11 @@ import sys
 from psychopy import core, data, event, visual
 
 from config import (BG, BUTTON_Y, CAMERA_INDEX, CONFIDENCE_LABELS, DATA_DIR,
-                    FULLSCREEN, IMAGE_POS, MUTED, PRACTICE_TRIALS,
-                    PRACTICE_TRIGGER_OFFSET, PROMPT_HEIGHT, PROMPT_POS,
-                    QuitExperiment, SCREEN, SHOW_GAZE, STIM_HEIGHT,
-                    TRIAL_NUMBER_HEIGHT, TRIAL_NUMBER_POS, TRIALS_CSV, WIN_SIZE)
+                    FULLSCREEN, IMAGE_POS, MUTED, PLACEHOLDER_CSV,
+                    PRACTICE_TRIALS, PRACTICE_TRIGGER_OFFSET, PROMPT_HEIGHT,
+                    PROMPT_POS, QuitExperiment, RecalibrateRequest, SCREEN,
+                    SHOW_GAZE, STIM_HEIGHT, TRIAL_NUMBER_HEIGHT,
+                    TRIAL_NUMBER_POS, TRIALS_CSV, WIN_SIZE)
 import overlay
 
 from gaze import GazeRecorder
@@ -236,15 +237,33 @@ def load_and_verify_trials(csv_path):
     return trials
 
 
+def _show_info(win, gaze, title, **kwargs):
+    """Show an info screen; pressing R recalibrates and re-shows it."""
+    while True:
+        try:
+            return info_screen(win, title, **kwargs)
+        except RecalibrateRequest:
+            gaze.recalibrate(win)
+            event.clearEvents()
+
+
 #################### Main ####################
 def main():
     show_gaze = SHOW_GAZE or "-demo" in sys.argv or "--demo" in sys.argv
+    use_placeholder = "--placeholder" in sys.argv
     if show_gaze:
         print("[demo] gaze overlay ON")
 
     try:
-        trial_rows = load_and_verify_trials(TRIALS_CSV)
-        print(f"[OK] Verified {len(trial_rows)} trials from '{TRIALS_CSV}'")
+        if use_placeholder:
+            from make_placeholders import generate
+            trial_csv = generate(PLACEHOLDER_CSV)
+            print(f"[placeholder] generated trial list at '{trial_csv}'")
+        else:
+            trial_csv = TRIALS_CSV
+
+        trial_rows = load_and_verify_trials(trial_csv)
+        print(f"[OK] Verified {len(trial_rows)} trials from '{trial_csv}'")
     except StimulusError as err:
         print(f"[ERROR] {err}", file=sys.stderr)
         return
@@ -346,8 +365,9 @@ def main():
     this_exp.addLoop(trials)
 
     try:
-        if not info_screen(
+        if not _show_info(
             win,
+            gaze,
             "Welcome",
             body=(
                 "You will see a series of faces. Some are photographs "
@@ -371,8 +391,9 @@ def main():
             raise QuitExperiment()
 
         if PRACTICE_TRIALS:
-            if not info_screen(
+            if not _show_info(
                 win,
+                gaze,
                 "Practice",
                 body=(
                     "First, you will complete one practice trial to get used "
@@ -386,22 +407,29 @@ def main():
             for i, row in enumerate(
                 trial_rows[:PRACTICE_TRIALS]
             ):
-                run_trial(
-                    win,
-                    mouse,
-                    row,
-                    fixation,
-                    classification_buttons,
-                    confidence_buttons,
-                    gaze,
-                    trial_index=i + 1,
-                    total_trials=PRACTICE_TRIALS,
-                    practice=True,
-                    trigger=PRACTICE_TRIGGER_OFFSET + i + 1,
-                )
+                while True:
+                    try:
+                        run_trial(
+                            win,
+                            mouse,
+                            row,
+                            fixation,
+                            classification_buttons,
+                            confidence_buttons,
+                            gaze,
+                            trial_index=i + 1,
+                            total_trials=PRACTICE_TRIALS,
+                            practice=True,
+                            trigger=PRACTICE_TRIGGER_OFFSET + i + 1,
+                        )
+                        break
+                    except RecalibrateRequest:
+                        gaze.recalibrate(win)
+                        event.clearEvents()
 
-        if not info_screen(
+        if not _show_info(
             win,
+            gaze,
             "Ready?",
             body=(
                 "The main task starts now.\n\nAs in the practice, you "
@@ -415,25 +443,32 @@ def main():
         total_trials = trials.nTotal
 
         for i, trial in enumerate(trials):
-            result = run_trial(
-                win,
-                mouse,
-                trial,
-                fixation,
-                classification_buttons,
-                confidence_buttons,
-                gaze,
-                trial_index=i + 1,
-                total_trials=total_trials,
-            )
+            while True:
+                try:
+                    result = run_trial(
+                        win,
+                        mouse,
+                        trial,
+                        fixation,
+                        classification_buttons,
+                        confidence_buttons,
+                        gaze,
+                        trial_index=i + 1,
+                        total_trials=total_trials,
+                    )
+                    break
+                except RecalibrateRequest:
+                    gaze.recalibrate(win)
+                    event.clearEvents()
 
             for key, value in result.items():
                 trials.addData(key, value)
 
             this_exp.nextEntry()
 
-        info_screen(
+        _show_info(
             win,
+            gaze,
             "Thank you",
             body=(
                 "You have completed the task.\n\nYour participation "

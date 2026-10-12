@@ -1,8 +1,10 @@
 """Live gaze-dot overlay for demo mode."""
 
-from psychopy import visual
+import math
 
-from config import GAZE_DOT_SMOOTHING
+from psychopy import core, visual
+
+from config import GAZE_DOT_TAU
 
 _win = None
 _gaze = None
@@ -11,6 +13,7 @@ _enabled = False
 
 _last = None
 _smooth = None
+_last_t = None
 
 
 def setup(win, gaze, enabled):
@@ -32,7 +35,7 @@ def setup(win, gaze, enabled):
 
 
 def draw():
-    global _last, _smooth
+    global _last, _smooth, _last_t
 
     if _gaze is None:
         return
@@ -60,21 +63,22 @@ def draw():
     norm_y = raw_y / gaze_h
 
     # PsychoPy "pix" units: (0, 0) = centre, +x right, +y up.
-    target = (
-        norm_x * screen_w - screen_w / 2,
-        screen_h / 2 - norm_y * screen_h,
-    )
+    target_x = norm_x * screen_w - screen_w / 2
+    target_y = screen_h / 2 - norm_y * screen_h
 
-    # Exponential moving average: the dot eases toward the latest sample
-    # instead of snapping, which kills the raw-sample jitter. Lower alpha =
-    # smoother but laggier (tune via GAZE_DOT_SMOOTHING in config.py).
+    # Time-constant exponential smoothing: frame-rate independent, smooth and
+    # laggy. Larger GAZE_DOT_TAU = smoother but slower to catch up.
+    now = core.getTime()
     if _smooth is None:
-        _smooth = target
+        _smooth = (target_x, target_y)
+        _last_t = now
     else:
-        alpha = GAZE_DOT_SMOOTHING
+        dt = max(now - _last_t, 1e-6)
+        _last_t = now
+        alpha = 1.0 - math.exp(-dt / GAZE_DOT_TAU)
         _smooth = (
-            alpha * target[0] + (1 - alpha) * _smooth[0],
-            alpha * target[1] + (1 - alpha) * _smooth[1],
+            _smooth[0] + alpha * (target_x - _smooth[0]),
+            _smooth[1] + alpha * (target_y - _smooth[1]),
         )
 
     _dot.pos = _smooth
@@ -94,9 +98,10 @@ def hide():
 
 
 def reset():
-    global _last, _smooth
+    global _last, _smooth, _last_t
     _last = None
     _smooth = None
+    _last_t = None
 
 
 def has_gaze():
