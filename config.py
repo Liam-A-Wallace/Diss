@@ -5,7 +5,8 @@ WIN_SIZE = (1920, 1080)   # native resolution of the experiment monitor
 FULLSCREEN = True
 SCREEN = 0          # which monitor PsychoPy uses (0 = primary)
 SHOW_GAZE = False   # demo: draw the live gaze point on screen
-CAMERA_INDEX = 0    # which webcam GazeFollower opens
+CAMERA_INDEX = 0   # which webcam GazeFollower opens
+CALIBRATION_POINTS = 9   # gaze calibration pattern: 5, 9, or 13 points
 FONT = "Open Sans"
 
 # Palette (Soft Light / Paper Theme)
@@ -23,6 +24,21 @@ BTN_LINE = "#CCCCCC"   # Button borders
 FIXATION_DURATION = 0.7
 ITI_DURATION = 0.5
 PRACTICE_TRIALS = 1
+
+# Eye-tracker readiness gate (the "ready" cross).
+# GAZE_READY_WINDOW: a valid calibrated sample must have arrived within this
+#   many seconds for the tracker to count as "ready" (guards against stale
+#   samples when the camera briefly loses the participant).
+# READY_TIMEOUT: hard ceiling after which the ready screen advances even if
+#   gaze never stabilises, so the session can't hang indefinitely.
+GAZE_READY_WINDOW = 0.3
+READY_TIMEOUT = 15.0
+
+# Demo gaze dot.
+# GAZE_DOT_SMOOTHING: exponential-moving-average alpha applied to the dot's
+#   position each frame. 0 < alpha <= 1; lower = smoother/less jittery but
+#   laggier, higher = snappier but noisier.
+GAZE_DOT_SMOOTHING = 0.15
 
 # Practice trials are stamped with this offset so their gaze data never
 # collides with the numbered main trials (which use 1, 2, 3, ...).

@@ -6,12 +6,14 @@ Use is non-commercial (academic research only). See README for attribution.
 
 import csv
 import os
+import time
 
 import pygame
 
-from config import WARMUP_TRIGGER
+from config import WARMUP_TRIGGER, CALIBRATION_POINTS
 from gazefollower import GazeFollower
 from gazefollower.camera import WebCamCamera
+from gazefollower.misc import DefaultConfig
 
 
 class GazeRecorder:
@@ -19,13 +21,28 @@ class GazeRecorder:
         self.output_path = output_path
         self.camera_index = camera_index
         self.tracker = None
+        # monotonic timestamp of the most recent valid calibrated sample
+        self._last_valid_time = None
+        # resolution (width, height) of the coordinate space GazeFollower
+        # reports calibrated gaze in; captured once after the tracker is built
+        self.screen_size = None
 
     def init(self):
         # build the eye tracker (loads the gaze models) before the experiment
         # window opens; preview and calibration are run later, in
-        # GazeFollower's own display, after the PsychoPy window is closed
+        # GazeFollower's own display, after the PsychoPy window is closed.
+        #
+        # The number of calibration points must be set on the config BEFORE
+        # GazeFollower is built: GazeFollower copies config.cali_mode into its
+        # CalibrationController at construction time, so changing it later has
+        # no effect.
+        cfg = DefaultConfig()
+        cfg.cali_mode = CALIBRATION_POINTS
         self.tracker = GazeFollower(
-            camera=WebCamCamera(webcam_id=self.camera_index))
+            camera=WebCamCamera(webcam_id=self.camera_index),
+            config=cfg)
+        self.screen_size = tuple(
+            int(v) for v in self.tracker.config.screen_size)
 
     def calibrate(self):
         # let GazeFollower create and manage its own display, exactly as its
@@ -57,20 +74,46 @@ class GazeRecorder:
             self.tracker.send_trigger(int(trigger))
 
     def poll(self):
-        # live gaze point in screen pixels, for the debug overlay
         if not self.tracker:
             return None
+
         info = self.tracker.get_gaze_info()
+
         if info is None or not getattr(info, "status", False):
             return None
-        # prefer the smoothed stream so the demo dot is less jittery
-        for attr in ("filtered_gaze_coordinates",
-                     "calibrated_gaze_coordinates",
-                     "raw_gaze_coordinates"):
-            coords = getattr(info, attr, None)
-            if coords is not None and len(coords) >= 2:
-                return (float(coords[0]), float(coords[1]))
+
+        coords = getattr(info, "filtered_gaze_coordinates", None)
+        if coords is None or len(coords) < 2:
+            # fall back to the raw calibrated point if the filter hasn't
+            # produced a value yet
+            coords = getattr(info, "calibrated_gaze_coordinates", None)
+
+        if coords is not None and len(coords) >= 2:
+            result = (float(coords[0]), float(coords[1]))
+            self._last_valid_time = time.monotonic()
+
+            # if not hasattr(self, "_debug_count"):
+            #     self._debug_count = 0
+            #
+            # self._debug_count += 1
+            #
+            # if self._debug_count % 20 == 0:
+            #     print(
+            #         f"[GAZE {self._debug_count}] "
+            #         f"calibrated=({result[0]:.1f}, {result[1]:.1f})"
+            #     )
+
+            return result
+
         return None
+
+    def recent_gaze(self, within=0.3):
+        # True only if a valid calibrated sample arrived within the last
+        # `within` seconds — i.e. the tracker is *currently* locked on the
+        # participant, not just that it produced one sample earlier.
+        if self._last_valid_time is None:
+            return False
+        return (time.monotonic() - self._last_valid_time) <= within
 
     def stop_trial(self):
         if self.tracker:

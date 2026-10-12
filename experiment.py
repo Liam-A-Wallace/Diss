@@ -80,7 +80,8 @@ def run_trial(
     # to signal they are ready before the face (and recording) starts
     overlay.reset()
     gaze.warm_up()
-    run_ready(win, fixation)
+    overlay.show()
+    run_ready(win, fixation, gaze)
     event.clearEvents()
 
     # Stage 1: view the face
@@ -113,6 +114,7 @@ def run_trial(
     # any advance key (ENTER/SPACE) pauses recording here, so the decision
     # and confidence screens are not part of this stimulus's gaze trace
     gaze.stop_trial()
+    overlay.hide()
 
     # Stage 2: real / fake decision
     decision_prompt = text(
@@ -267,6 +269,9 @@ def main():
         units="height",
         useFBO=True,
     )
+
+    print("[PsychoPy] win.size =", win.size)
+    print("[GazeFollower] screen size =", gaze.tracker.config.screen_size)
 
     overlay.setup(win, gaze, show_gaze)
 

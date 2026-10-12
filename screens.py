@@ -2,8 +2,8 @@
 from psychopy import core, event, visual
 
 from config import (ACCENT, BTN_FILL, BTN_HOVER, BTN_LINE, FIXATION_DURATION,
-                    ITI_DURATION, MUTED, PANEL, PANEL_LINE, QuitExperiment,
-                    TEXT)
+                    GAZE_READY_WINDOW, ITI_DURATION, MUTED, PANEL, PANEL_LINE,
+                    QuitExperiment, READY_TIMEOUT, TEXT)
 from ui import Button, rounded_rect, text
 
 import overlay
@@ -247,7 +247,7 @@ def wait_for_click(win, mouse, buttons, extras=()):
             return hovered.value, rt_clock.getTime()
 
 
-def run_ready(win, fixation):
+def run_ready(win, fixation, gaze):
     # self-paced "ready" gate: show the fixation cross with a hint and wait
     # for ENTER/SPACE, so the eye tracker has time to warm up before the face
     win.mouseVisible = False
@@ -273,10 +273,12 @@ def run_ready(win, fixation):
             raise QuitExperiment()
 
         elapsed = floor.getTime()
-        # wait until the camera is actually producing gaze before the face
-        # can appear, so the dot and recording are live at image onset; the
-        # 15 s ceiling stops the screen hanging if gaze never stabilises
-        ready = (elapsed >= FIXATION_DURATION and overlay.has_gaze()) or elapsed >= 15.0
+        # wait until the camera is *currently* producing gaze (a fresh sample
+        # within GAZE_READY_WINDOW) before the face can appear, so the dot and
+        # recording are live at image onset; READY_TIMEOUT stops the screen
+        # hanging if gaze never stabilises.
+        ready = (elapsed >= FIXATION_DURATION
+                 and gaze.recent_gaze(GAZE_READY_WINDOW)) or elapsed >= READY_TIMEOUT
         if ready and any(key in keys for key in ("return", "num_enter", "space")):
             break
 
