@@ -1,0 +1,14 @@
+image_id,image_url,label,label_numeric,category,gender,age_group,source,fake_method,image_quality,resolution,confidence_score,detection_difficulty,dataset_split,date_collected,version,year,source_dataset
+sd_portrait_male_001,Dataset/datasets/generated_portraits/male/male_001.jpg,FAKE,0,AI Generated,male,,SDXL,stable-diffusion-xl,High,1024x1024,,,,2026-10-07,v1.0,2026,sdxl
+sd_portrait_male_002,Dataset/datasets/generated_portraits/male/male_002.jpg,FAKE,0,AI Generated,male,,SDXL,stable-diffusion-xl,High,1024x1024,,,,2026-10-07,v1.0,2026,sdxl
+sd_portrait_male_003,Dataset/datasets/generated_portraits/male/male_003.jpg,FAKE,0,AI Generated,male,,SDXL,stable-diffusion-xl,High,1024x1024,,,,2026-10-07,v1.0,2026,sdxl
+sd_portrait_male_004,Dataset/datasets/generated_portraits/male/male_004.jpg,FAKE,0,AI Generated,male,,SDXL,stable-diffusion-xl,High,1024x1024,,,,2026-10-07,v1.0,2026,sdxl
+sd_portrait_male_005,Dataset/datasets/generated_portraits/male/male_005.jpg,FAKE,0,AI Generated,male,,SDXL,stable-diffusion-xl,High,1024x1024,,,,2026-10-07,v1.0,2026,sdxl
+sd_portrait_male_006,Dataset/datasets/generated_portraits/male/male_006.jpg,FAKE,0,AI Generated,male,,SDXL,stable-diffusion-xl,High,1024x1024,,,,2026-10-07,v1.0,2026,sdxl
+sd_portrait_male_007,Dataset/datasets/generated_portraits/male/male_007.jpg,FAKE,0,AI Generated,male,,SDXL,stable-diffusion-xl,High,1024x1024,,,,2026-10-07,v1.0,2026,sdxl
+sd_portrait_male_008,Dataset/datasets/generated_portraits/male/male_008.jpg,FAKE,0,AI Generated,male,,SDXL,stable-diffusion-xl,High,1024x1024,,,,2026-10-07,v1.0,2026,sdxl
+sd_portrait_female_009,Dataset/datasets/generated_portraits/female/female_009.jpg,FAKE,0,AI Generated,female,,SDXL,stable-diffusion-xl,High,1024x1024,,,,2026-10-07,v1.0,2026,sdxl
+sd_portrait_female_010,Dataset/datasets/generated_portraits/female/female_010.jpg,FAKE,0,AI Generated,female,,SDXL,stable-diffusion-xl,High,1024x1024,,,,2026-10-07,v1.0,2026,sdxl
+sd_portrait_female_011,Dataset/datasets/generated_portraits/female/female_011.jpg,FAKE,0,AI Generated,female,,SDXL,stable-diffusion-xl,High,1024x1024,,,,2026-10-07,v1.0,2026,sdxl
+sd_portrait_female_012,Dataset/datasets/generated_portraits/female/female_012.jpg,FAKE,0,AI Generated,female,,SDXL,stable-diffusion-xl,High,1024x1024,,,,2026-10-07,v1.0,2026,sdxl
+sd_portrait_female_013,Dataset/datasets/generated_portraits/female/female_013.jpg,FAKE,0,AI Generated,female,,SDXL,stable-diffusion-xl,High,1024x1024,,,,2026-10-07,v1.0,2026,sdxl

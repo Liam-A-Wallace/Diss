@@ -13,13 +13,16 @@ from psychopy import core, data, event, visual
 from config import (BG, BREAK_AT_FRACTION, BUTTON_Y, CAMERA_INDEX,
                     CHECKPOINT_EVERY, CONF_BUTTON_SPACING, CONF_BUTTON_Y,
                     CONF_CAPTION_Y, CONF_PROMPT_POS, CONFIDENCE_LABELS,
-                    DATA_DIR, FULLSCREEN, GAZE_MIN_VALID_FRAC, IMAGE_POS,
+                    DATA_DIR, FULLSCREEN, GAZE_MIN_VALID_FRAC,
                     MUTED, PLACEHOLDER_CSV, PRACTICE_CSV, PRACTICE_TRIALS,
                     PRACTICE_TRIGGER_OFFSET, PROMPT_HEIGHT, PROMPT_POS,
-                    SCREEN, SHOW_GAZE, STIM_HEIGHT, TRIAL_NUMBER_HEIGHT,
+                    SCREEN, SHOW_GAZE, TRIAL_NUMBER_HEIGHT,
                     TRIAL_NUMBER_POS, TRIALS_CSV, VIEW_HINT_POS, WIN_SIZE)
 import overlay
 import texts
+import config
+from session_log import SessionLog, export_image_gaze
+from viewing import view_image
 
 from errors import QuitExperiment, RecalibrateRequest, StimulusError
 from gaze import GazeRecorder
@@ -61,6 +64,7 @@ def run_trial(
     confidence_buttons,
     stims,
     gaze,
+    session,
     trial_index=0,
     practice=False,
     trigger=None,
@@ -79,15 +83,6 @@ def run_trial(
         image=stim_path,
         units="height",
     )
-
-    # scale to STIM_HEIGHT, keeping the image's own aspect ratio
-    try:
-        w, h = image.size
-        image.size = (STIM_HEIGHT * w / h, STIM_HEIGHT)
-    except Exception:
-        image.size = (STIM_HEIGHT, STIM_HEIGHT)
-
-    image.pos = IMAGE_POS
 
     photo_label = (
         f"Practice {trial_index}"
@@ -112,40 +107,10 @@ def run_trial(
     drift = run_ready(win, fixation, gaze)
     event.clearEvents()
 
-    # Stage 1: view the face. Onset/offset are stamped on the flips that put
-    # the image up and take it down, in the same epoch-ns clock as the gaze
-    # samples, so the window is exactly what the participant saw.
-    stamps = {}
-    win.mouseVisible = False
-    gaze.mark_trial(trigger_value)
-    dropped_before = win.nDroppedFrames
-    first_frame = True
-
-    while True:
-        image.draw()
-        counter.draw()
-        stims["view_hint"].draw()
-        overlay.draw()
-        if first_frame:
-            win.callOnFlip(lambda: stamps.setdefault("onset", time.time_ns()))
-            first_frame = False
-        win.flip()
-
-        keys = event.getKeys(keyList=["return", "num_enter", "space", "escape"])
-        if "escape" in keys:
-            raise QuitExperiment()
-        if any(key in keys for key in ("return", "num_enter", "space")):
-            break
-
-    # the image is still up until this next flip, so that flip is the offset
-    overlay.hide()
-    win.callOnFlip(lambda: stamps.setdefault("offset", time.time_ns()))
-    win.flip()
-
+    stamps, dropped = view_image(
+        win, mouse, image, stim_path, counter, stims["view_hint"], gaze, session,
+        trial_index, trigger_value, practice, true_class)
     onset_ns, offset_ns = stamps["onset"], stamps["offset"]
-    dropped = win.nDroppedFrames - dropped_before
-    gaze.record_window(trial_index, trigger_value, practice, true_class,
-                       stim_path, onset_ns, offset_ns)
     n_samples, valid_frac = gaze.window_quality(onset_ns, offset_ns)
     if valid_frac < GAZE_MIN_VALID_FRAC:
         print(f"[gaze] trial {trial_index}: low quality "
@@ -218,7 +183,7 @@ def _run_trial_with_recal(win, gaze, **kwargs):
 def _load_trials(use_placeholder):
     """Returns (main_rows, practice_rows); practice never repeats a main image."""
     if use_placeholder:
-        from make_placeholders import generate
+        from tools.make_placeholders import generate
         trial_csv = generate(PLACEHOLDER_CSV)
         print(f"[placeholder] generated trial list at '{trial_csv}'")
     else:
@@ -263,6 +228,8 @@ def _parse_args():
 #################### Main ####################
 def main():
     args = _parse_args()
+    if not FULLSCREEN or SCREEN != 0:
+        raise ValueError("Gaze mapping currently requires fullscreen on the primary calibration monitor (SCREEN=0).")
     show_gaze = SHOW_GAZE or args.demo
     if show_gaze:
         print("[demo] gaze overlay ON")
@@ -316,7 +283,7 @@ def main():
 
     base_name = os.path.join(
         out_dir,
-        f"{exp_info['participant']}_{exp_info['session']}_{data.getDateStr()}",
+        f"{exp_info['participant']}_{exp_info['session']}_{data.getDateStr()}_{time.time_ns() % 1_000_000_000:09d}",
     )
 
     # stored with the data so the trial order can be reproduced
@@ -324,7 +291,7 @@ def main():
 
     this_exp = data.ExperimentHandler(
         name="SeeingTheFake",
-        version="0.3",
+        version="0.4",
         extraInfo=exp_info,
         savePickle=False,
         saveWideText=False,
@@ -332,6 +299,14 @@ def main():
     )
 
     gaze.set_output(base_name)
+    try:
+        session = SessionLog(base_name, exp_info, win.size, gaze.screen_size,
+                             {k: v for k, v in vars(config).items() if k.isupper()},
+                             trial_rows, practice_rows)
+    except Exception:
+        gaze.stop_session()
+        win.close()
+        raise
 
     mouse = event.Mouse(win=win)
     fixation = make_fixation(win)
@@ -367,6 +342,7 @@ def main():
     stims = build_trial_stims(win, confidence_buttons)
 
     trial_kwargs = dict(
+        session=session,
         mouse=mouse,
         fixation=fixation,
         classification_buttons=classification_buttons,
@@ -378,6 +354,7 @@ def main():
     break_after = (round(total_trials * BREAK_AT_FRACTION)
                    if BREAK_AT_FRACTION and total_trials >= 2 else None)
 
+    session_status = "error"
     try:
         if not _show_info(win, gaze, **texts.WELCOME):
             raise QuitExperiment()
@@ -435,14 +412,18 @@ def main():
                 if not _show_info(win, gaze, **texts.BREAK):
                     raise QuitExperiment()
 
+        session_status = "complete"
         _show_info(win, gaze, **texts.THANKS)
 
     except QuitExperiment:
-        pass
+        if session_status != "complete":
+            session_status = "aborted"
 
     finally:
         # each step is isolated so one failure cannot skip the rest
-        for step in (gaze.stop_session,
+        for step in (lambda: session.finish(session_status),
+                     gaze.stop_session,
+                     lambda: export_image_gaze(base_name),
                      lambda: this_exp.saveAsWideText(base_name + ".csv",
                                                      delim=","),
                      lambda: this_exp.saveAsPickle(base_name + ".psydat"),

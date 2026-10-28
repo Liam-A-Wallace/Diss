@@ -1,0 +1,5 @@
+# Only needed for automatic AOI generation.
+-r requirements.txt
+torch>=2.2
+transformers>=4.40,<5
+huggingface_hub>=0.23

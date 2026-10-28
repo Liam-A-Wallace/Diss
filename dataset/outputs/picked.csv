@@ -1,0 +1,51 @@
+image_id,image_url,label,label_numeric,category,gender,age_group,source,fake_method,image_quality,resolution,confidence_score,detection_difficulty,dataset_split,date_collected,version,year,source_dataset,picked_file
+dfr60k_real_0001_(14657),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (14657).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_001.png
+dfr60k_real_0001_(13887),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (13887).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_002.png
+dfr60k_real_0001_(12582),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (12582).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_003.png
+dfr60k_real_0001_(13051),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (13051).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_004.png
+dfr60k_real_0001_(14517),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (14517).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_005.png
+dfr60k_real_0001_(14679),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (14679).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_006.png
+dfr60k_real_0001_(10592),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (10592).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_007.png
+dfr60k_real_0001_(11794),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (11794).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_008.png
+dfr60k_real_0001_(10273),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (10273).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_009.png
+dfr60k_real_0001_(10844),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (10844).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_010.png
+dfr60k_real_0001_(13089),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (13089).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_011.png
+dfr60k_real_0001_(11924),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (11924).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_012.png
+dfr60k_real_0001_(12492),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (12492).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_013.png
+dfr60k_real_0001_(13155),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (13155).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_014.png
+dfr60k_real_0001_(13968),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (13968).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_015.png
+dfr60k_real_0001_(13324),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (13324).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_016.png
+dfr60k_real_0001_(11264),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (11264).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_017.png
+dfr60k_real_0001_(10947),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (10947).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_018.png
+dfr60k_real_0001_(11678),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (11678).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_019.png
+dfr60k_real_0001_(13754),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (13754).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_020.png
+dfr60k_real_0001_(12802),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (12802).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_021.png
+dfr60k_real_0001_(12729),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (12729).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_022.png
+dfr60k_real_0001_(12830),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (12830).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_023.png
+dfr60k_real_0001_(10458),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (10458).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_024.png
+dfr60k_real_0001_(12848),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (12848).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_025.png
+dfr60k_fake_0001_(14480),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Fake/0001 (14480).jpg,FAKE,0,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/fake/fake_001.jpg
+dfr60k_fake_0001_(1020),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Fake/0001 (1020).jpg,FAKE,0,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/fake/fake_002.jpg
+dfr60k_fake_0001_(12817),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Fake/0001 (12817).jpg,FAKE,0,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/fake/fake_003.jpg
+dfr60k_fake_0001_(12330),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Fake/0001 (12330).jpg,FAKE,0,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/fake/fake_004.jpg
+dfr60k_fake_0001_(13840),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Fake/0001 (13840).jpg,FAKE,0,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/fake/fake_005.jpg
+dfr60k_fake_0001_(136),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Fake/0001 (136).jpg,FAKE,0,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/fake/fake_006.jpg
+tpdn_face_(769),Dataset/datasets/generated_faces/images/face (769).jpg,FAKE,0,AI Generated,,,ThisPersonDoesNotExist,,,,,,,2026-10-07,v1.0,2026,tpdn,datasets/picked/fake/fake_007.jpg
+tpdn_face_(405),Dataset/datasets/generated_faces/images/face (405).jpg,FAKE,0,AI Generated,,,ThisPersonDoesNotExist,,,,,,,2026-10-07,v1.0,2026,tpdn,datasets/picked/fake/fake_008.jpg
+tpdn_face_(480),Dataset/datasets/generated_faces/images/face (480).jpg,FAKE,0,AI Generated,,,ThisPersonDoesNotExist,,,,,,,2026-10-07,v1.0,2026,tpdn,datasets/picked/fake/fake_009.jpg
+tpdn_face_(83),Dataset/datasets/generated_faces/images/face (83).jpg,FAKE,0,AI Generated,,,ThisPersonDoesNotExist,,,,,,,2026-10-07,v1.0,2026,tpdn,datasets/picked/fake/fake_010.jpg
+tpdn_face_(234),Dataset/datasets/generated_faces/images/face (234).jpg,FAKE,0,AI Generated,,,ThisPersonDoesNotExist,,,,,,,2026-10-07,v1.0,2026,tpdn,datasets/picked/fake/fake_011.jpg
+tpdn_face_(503),Dataset/datasets/generated_faces/images/face (503).jpg,FAKE,0,AI Generated,,,ThisPersonDoesNotExist,,,,,,,2026-10-07,v1.0,2026,tpdn,datasets/picked/fake/fake_012.jpg
+tpdn_face_(275),Dataset/datasets/generated_faces/images/face (275).jpg,FAKE,0,AI Generated,,,ThisPersonDoesNotExist,,,,,,,2026-10-07,v1.0,2026,tpdn,datasets/picked/fake/fake_013.jpg
+tpdn_face_(695),Dataset/datasets/generated_faces/images/face (695).jpg,FAKE,0,AI Generated,,,ThisPersonDoesNotExist,,,,,,,2026-10-07,v1.0,2026,tpdn,datasets/picked/fake/fake_014.jpg
+tpdn_face_(196),Dataset/datasets/generated_faces/images/face (196).jpg,FAKE,0,AI Generated,,,ThisPersonDoesNotExist,,,,,,,2026-10-07,v1.0,2026,tpdn,datasets/picked/fake/fake_015.jpg
+tpdn_face_(420),Dataset/datasets/generated_faces/images/face (420).jpg,FAKE,0,AI Generated,,,ThisPersonDoesNotExist,,,,,,,2026-10-07,v1.0,2026,tpdn,datasets/picked/fake/fake_016.jpg
+tpdn_face_(104),Dataset/datasets/generated_faces/images/face (104).jpg,FAKE,0,AI Generated,,,ThisPersonDoesNotExist,,,,,,,2026-10-07,v1.0,2026,tpdn,datasets/picked/fake/fake_017.jpg
+tpdn_face_(329),Dataset/datasets/generated_faces/images/face (329).jpg,FAKE,0,AI Generated,,,ThisPersonDoesNotExist,,,,,,,2026-10-07,v1.0,2026,tpdn,datasets/picked/fake/fake_018.jpg
+tpdn_face_(55),Dataset/datasets/generated_faces/images/face (55).jpg,FAKE,0,AI Generated,,,ThisPersonDoesNotExist,,,,,,,2026-10-07,v1.0,2026,tpdn,datasets/picked/fake/fake_019.jpg
+tpdn_face_(277),Dataset/datasets/generated_faces/images/face (277).jpg,FAKE,0,AI Generated,,,ThisPersonDoesNotExist,,,,,,,2026-10-07,v1.0,2026,tpdn,datasets/picked/fake/fake_020.jpg
+luca_0-24-17,Dataset/datasets/luca_stimuli/generated/0-24-17.png,FAKE,0,AI Generated,male,,LucaCorvitto-DeepFake-Faces-Stimuli,,,,,,,2026-10-07,v1.0,2026,luca,datasets/picked/fake/fake_021.png
+luca_0-10-5,Dataset/datasets/luca_stimuli/generated/0-10-5.png,FAKE,0,AI Generated,male,,LucaCorvitto-DeepFake-Faces-Stimuli,,,,,,,2026-10-07,v1.0,2026,luca,datasets/picked/fake/fake_022.png
+luca_0-12-8,Dataset/datasets/luca_stimuli/generated/0-12-8.png,FAKE,0,AI Generated,male,,LucaCorvitto-DeepFake-Faces-Stimuli,,,,,,,2026-10-07,v1.0,2026,luca,datasets/picked/fake/fake_023.png
+luca_0-45-18,Dataset/datasets/luca_stimuli/generated/0-45-18.png,FAKE,0,AI Generated,female,,LucaCorvitto-DeepFake-Faces-Stimuli,,,,,,,2026-10-07,v1.0,2026,luca,datasets/picked/fake/fake_024.png
+luca_0-28-13,Dataset/datasets/luca_stimuli/generated/0-28-13.png,FAKE,0,AI Generated,female,,LucaCorvitto-DeepFake-Faces-Stimuli,,,,,,,2026-10-07,v1.0,2026,luca,datasets/picked/fake/fake_025.png

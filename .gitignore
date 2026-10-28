@@ -16,5 +16,13 @@ data/
 stimuli/
 trials_placeholder.csv
 
+# Dataset/enrichment caches (re-downloadable thumbnails)
+.image_cache/
+
 # OS
 .DS_Store
+
+# Generated offline analysis assets
+models/
+aois/
+processed/

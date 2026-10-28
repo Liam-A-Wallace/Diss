@@ -1,19 +1,23 @@
-"""Configuration and shared constants for the experiment."""
+﻿"""Configuration and shared constants for the experiment."""
 
 
 WIN_SIZE = (1920, 1080)   # native resolution of the experiment monitor
 FULLSCREEN = True
 SCREEN = 0          # which monitor PsychoPy uses (0 = primary)
 SHOW_GAZE = False   # demo: draw the live gaze point on screen
-CAMERA_INDEX = 0   # which webcam GazeFollower opens
+CAMERA_INDEX = 1   # which webcam GazeFollower opens
 
-# Camera exposure. Setting LOCK_CAMERA_EXPOSURE = True stops the webcam from
-# adapting to bright/dark stimulus changes (a bright cross screen followed by
-# a dark photo was biasing the gaze estimate downward). CAMERA_EXPOSURE is the
-# fixed exposure value once auto-exposure is off; the unit is backend-specific
-# (OpenCV CAP_PROP_EXPOSURE), so it may need tuning per webcam.
+# Gaze model. GAZE_MODEL is a filename under GazeFollower's
+# res/model_weights/ folder (e.g. "base_32M.mnn"), or an absolute/relative
+# path. "" falls back to GazeFollower's own default (base.mnn). The 32M model
+# is the newer, more accurate one supplied by the GazeFollower authors.
+GAZE_MODEL = "base_32M.mnn"
+
+# Fixed exposure for this webcam. Reduce in small steps if the preview is too
+# bright; camera controls vary by webcam and driver. More negative is darker.
+# Automatic mode ignores CAMERA_EXPOSURE.
 LOCK_CAMERA_EXPOSURE = True
-CAMERA_EXPOSURE = -6
+CAMERA_EXPOSURE = -5.5
 CALIBRATION_POINTS = 13  # gaze calibration pattern: 5, 9, or 13 points
 # Gaze smoothing. ENABLE_FACE_FILTER smooths the face/eye landmarks before
 # they reach the gaze model (reduces jitter at the source). GAZE_FILTER picks
@@ -95,3 +99,8 @@ TRIALS_CSV = "trials.csv"
 PLACEHOLDER_CSV = "trials_placeholder.csv"
 DATA_DIR = "data"
 CONFIDENCE_LABELS = ["1", "2", "3", "4", "5"]
+
+# Image zoom relative to initial fit; original aspect ratio is preserved.
+MAX_ZOOM = 4.0
+
+

@@ -3,3 +3,7 @@ Pillow>=9.0.0
 pygame
 opencv-python
 # gazefollower is imported from the local ../GazeFollower checkout (see gaze.py)
+
+# Gaze analysis and plots
+numpy>=1.23
+matplotlib>=3.6

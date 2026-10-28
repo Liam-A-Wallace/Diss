@@ -27,14 +27,34 @@ if _GAZEFOLLOWER_DIR not in sys.path:
     sys.path.insert(0, _GAZEFOLLOWER_DIR)
 
 from config import (CALIBRATION_POINTS, CAMERA_EXPOSURE, ENABLE_FACE_FILTER,
-                    GAZE_FILTER, LOCK_CAMERA_EXPOSURE)
+                    GAZE_FILTER, GAZE_MODEL, LOCK_CAMERA_EXPOSURE)
 from gazefollower import GazeFollower
 from gazefollower.camera import WebCamCamera
 from gazefollower.filter import HeuristicFilter, OneEuroFilter
+from gazefollower.gaze_estimator import MGazeNetGazeEstimator
 from gazefollower.misc import DefaultConfig
 
 import gazefollower_patch
 gazefollower_patch.apply()
+
+# GazeFollower's bundled gaze models. We point at a model here (via
+# GAZE_MODEL) instead of replacing base.mnn, so the upstream checkout stays
+# pristine.
+_GAZE_MODEL_DIR = os.path.join(_GAZEFOLLOWER_DIR, "gazefollower", "res", "model_weights")
+
+
+def _resolve_gaze_model(model):
+    """Resolve GAZE_MODEL to a real model path without touching GazeFollower.
+
+    Accepts a bare filename under GazeFollower's res/model_weights/ (e.g.
+    "base_32M.mnn"), or an absolute/relative path. An empty string returns ""
+    so GazeFollower falls back to its own default (base.mnn).
+    """
+    if not model:
+        return ""
+    if os.path.isabs(model) or os.path.exists(model):
+        return model
+    return os.path.join(_GAZE_MODEL_DIR, model)
 
 # The worker appends rows with no header, so this is pre-written to its temp
 # sample file before sampling starts.
@@ -86,7 +106,7 @@ def trim_gaze_file(raw_path, windows, out_path):
                     ts = int(row["timestamp"])
                 except (TypeError, ValueError):
                     continue
-                while idx < len(windows) and ts > windows[idx]["offset_ns"]:
+                while idx < len(windows) and ts >= windows[idx]["offset_ns"]:
                     idx += 1
                 if idx == len(windows):
                     break
@@ -135,6 +155,11 @@ class GazeRecorder:
         gaze_filter = (
             OneEuroFilter() if GAZE_FILTER == "one_euro" else HeuristicFilter()
         )
+        model_path = _resolve_gaze_model(GAZE_MODEL)
+        if cfg.use_multiprocessing:
+            from gaze_worker import configure_worker
+            configure_worker(model_path, LOCK_CAMERA_EXPOSURE, CAMERA_EXPOSURE)
+        estimator = None if cfg.use_multiprocessing else MGazeNetGazeEstimator(model_path=model_path)
         self.tracker = GazeFollower(
             camera=WebCamCamera(
                 webcam_id=self.camera_index,
@@ -142,7 +167,8 @@ class GazeRecorder:
                 exposure=CAMERA_EXPOSURE,
             ),
             gaze_filter=gaze_filter,
-            config=cfg)
+            gaze_estimator=estimator,
+            config=cfg, use_multiprocessing=cfg.use_multiprocessing)
         self.screen_size = tuple(
             int(v) for v in self.tracker.config.screen_size)
         self._write_sample_header()
@@ -224,6 +250,8 @@ class GazeRecorder:
             return None
 
         result = (float(coords[0]), float(coords[1]))
+        if not all(math.isfinite(value) for value in result):
+            return None
 
         # get_gaze_info keeps returning the last sample when the queue is
         # empty, so only a changed timestamp counts as a fresh sample
@@ -297,7 +325,7 @@ class GazeRecorder:
                 ts = int(parts[0])
             except ValueError:
                 continue
-            if onset_ns <= ts <= offset_ns:
+            if onset_ns <= ts < offset_ns:
                 n += 1
                 valid += parts[_STATUS_COL].strip() == "1"
         return n, (valid / n if n else 0.0)

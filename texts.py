@@ -8,7 +8,7 @@ WELCOME = dict(
     ),
     steps=[
         ("Look at the face",
-         "A face will appear on its own. Take your time to look at it."),
+         "Take your time. Scroll to zoom, drag to move, and press HOME to reset."),
         ("Make your decision",
          "Press ENTER when you are ready, then click REAL or FAKE."),
         ("Rate your confidence",

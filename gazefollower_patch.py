@@ -1,11 +1,10 @@
 """Runtime patches applied on top of the *unmodified* GazeFollower checkout.
 
-GazeFollower is kept as a pristine upstream checkout (only the model weights
-``res/model_weights/base.mnn`` are swapped). The experiment needs one behaviour
-that upstream GazeFollower does not provide: camera exposure locking
-(``config.LOCK_CAMERA_EXPOSURE`` / ``config.CAMERA_EXPOSURE``), so a bright
-calibration cross followed by a dark stimulus does not bias the gaze estimate
-downward.
+GazeFollower is kept as a pristine upstream checkout (the gaze model is
+selected via config.GAZE_MODEL). The exposure mode and optional fixed value
+are selected in config.py and must be checked against the webcam and room
+lighting. Automatic mode explicitly restores the driver setting when selected.
+
 
 This module patches ``gazefollower.camera.WebCamCamera`` in-place at import
 time. Because ``gaze.py`` is imported from the experiment's main module and the
@@ -47,15 +46,29 @@ def apply():
 
     def open(self):
         _upstream_open(self)
-        if self.lock_exposure and self._cap.isOpened():
-            import cv2
+        if not self._cap.isOpened():
+            return
+        import cv2
 
-            auto_off = self._cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0)
+        # Windows backends use 0/1; V4L2 uses quarter-scale menu values.
+        backend = int(self._cap.get(cv2.CAP_PROP_BACKEND))
+        if self.lock_exposure:
+            auto_value = 0.25 if backend == cv2.CAP_V4L2 else 0
+            auto_off = self._cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, auto_value)
             set_exp = False
             if self.exposure is not None:
                 set_exp = self._cap.set(cv2.CAP_PROP_EXPOSURE, self.exposure)
-            Log.i(f"Camera exposure locked: auto_off={auto_off}, "
+            Log.i(f"Camera exposure lock requested: auto_off={auto_off}, "
                   f"exposure={self.exposure} set={set_exp}")
+        else:
+            # Explicitly restore auto mode: manual settings may persist in the
+            # camera driver between runs, even after changing the config.
+            auto_value = 0.75 if backend == cv2.CAP_V4L2 else 1
+            enabled = self._cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, auto_value)
+            Log.i(f"Camera automatic exposure requested: set={enabled}")
+            if not enabled:
+                Log.w("The webcam did not accept automatic exposure. "
+                      "Check its exposure setting in the camera controls.")
 
     _WebCamCamera.__init__ = __init__
     _WebCamCamera.open = open

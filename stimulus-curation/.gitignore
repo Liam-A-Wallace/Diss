@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+.image_cache/
+image_metadata.csv
+deepfake-vs-real-60k/

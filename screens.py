@@ -234,7 +234,9 @@ def wait_for_click(win, mouse, buttons, extras=()):
     win.mouseVisible = True
 
     # Wait out a held button so the previous click does not carry over.
-    for _ in range(120):
+    while True:
+        if "escape" in event.getKeys(keyList=["escape"]):
+            raise QuitExperiment()
         draw_screen()
         win.flip()
 
