@@ -1,4 +1,4 @@
-﻿# Dataset curation for "Seeing the Fake" — Study 1
+# Dataset curation for "Seeing the Fake" — Study 1
 
 Tools to go from source CSVs + image folders to a balanced, curated stimulus
 set that plugs straight into the PsychoPy experiment at the repo root (`../`).
@@ -36,7 +36,7 @@ them elsewhere). Image paths inside the manifests are **repo-root-relative**
 | `audit.py` | prints a dataset audit (distributions, confounds) |
 | `smoke_test.py` | headless end-to-end check of the curation pipeline |
 
-## Quick start (current workflow)
+## Selecting images
 
 Use the Diss venv:
 
@@ -72,17 +72,17 @@ Pass `--face-filter` to auto-axe candidates that aren't a single, prominent
 face (no face, multiple faces, or face too small). It uses OpenCV's Haar
 cascade (bundled with most wheels; downloaded once on first use otherwise).
 
-## The difficulty re-derivation (important, `curate.py` only)
+## Difficulty labels in the older workflow
 
 `detection_difficulty` is confounded with label in the source data
 (REAL = all "Easy", FAKE = only "Medium"/"Hard"), so it cannot populate the
 6-cell design. There is no predicted-class column, so we **assume**
 `confidence_score` is the detector's confidence in the *correct* label and
-treat it as **model-derived** difficulty:
+treat it as model-derived difficulty:
 
 - REAL: high confidence -> Easy, low -> Hard (looks least "real" = hardest).
 - FAKE: high confidence -> Easy, low -> Hard (confidently fake = easiest).
 
-This is model-derived difficulty, **not** human difficulty.
+This is model-derived difficulty, not human difficulty.
 
 Images are cached under `dataset/.image_cache/` so re-runs don't re-download.

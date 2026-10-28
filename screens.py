@@ -19,9 +19,10 @@ def _safe_id(value, default):
     return cleaned or default
 
 
-#################### Instruction screens ####################
+# Instruction screens
 def info_screen(win, title, body=None, steps=None,
-                footer="Press ENTER or SPACE to continue"):
+                footer="Press ENTER or SPACE to continue", allow_recalibration=True,
+                continue_when=None):
     card = rounded_rect(
         win, (1.28, 0.84), (0, 0),
         radius=0.035, fill=PANEL, line=PANEL_LINE
@@ -92,20 +93,27 @@ def info_screen(win, title, body=None, steps=None,
 
     event.clearEvents()
     while True:
+        ready = continue_when is None or continue_when()
+        current_footer = footer if ready else "Preparing eye tracker..."
+        if stims[-1].text != current_footer:
+            stims[-1].text = current_footer
         for stim in stims:
             stim.draw()
         overlay.draw()
         win.flip()
 
         keys = event.getKeys(keyList=["space", "return", "num_enter",
-                                      "escape", "r"])
+                                      "escape"] + (["r"] if allow_recalibration else []))
         if keys:
             if "r" in keys:
                 raise RecalibrateRequest()
-            return "escape" not in keys
+            if "escape" in keys:
+                return False
+            if ready:
+                return True
 
 
-#################### Participant entry ####################
+# Participant entry
 def participant_screen(win, participant="001", session="001"):
     fields = [list(participant), list(session)]
     labels = ("Participant ID", "Session")
@@ -217,7 +225,7 @@ def participant_screen(win, participant="001", session="001"):
     }
 
 
-#################### Response collection ####################
+# Response collection
 def wait_for_click(win, mouse, buttons, extras=()):
     def draw_screen(hovered=None):
         for stim in extras:
@@ -277,8 +285,7 @@ def run_ready(win, fixation, gaze):
         color=MUTED,
     )
     status = text(win, " ", (0, -0.33), height=0.026, color=MUTED, bold=True)
-    # readiness ring: red until the tracker has a fresh lock, green when
-    # ENTER will actually advance to the face
+    # Red: waiting for tracking; amber: off-centre; green: near the cross.
     ring = visual.Circle(
         win,
         radius=0.07,
@@ -288,13 +295,18 @@ def run_ready(win, fixation, gaze):
         lineWidth=5,
     )
 
+    gaze_dot = visual.Circle(win, radius=10, units="pix", fillColor="#00e5ff",
+                             lineColor="black", lineWidth=2)
     event.clearEvents()
     floor = core.Clock()
     drift_warned = False
     drift = None
 
     while True:
-        # a stale message is never shown: recomputed from the live state
+        sample = gaze.poll()
+        fresh = sample is not None and gaze.recent_gaze(GAZE_READY_WINDOW)
+        drift = gaze.drift_px(DRIFT_WINDOW_S)
+        # Refresh the tracking status each frame.
         if gaze.seconds_since_valid() > FACE_LOST_AFTER:
             status.text = ("Eye tracker cannot see you — please face the "
                            "camera and keep your head still")
@@ -302,17 +314,23 @@ def run_ready(win, fixation, gaze):
             status.text = ("Gaze looks off-centre. Press R to recalibrate, "
                            "or ENTER to continue anyway")
         else:
-            status.text = " "
+            status.text = "Blue dot = your gaze. Look at the centre cross."
 
         ready = (floor.getTime() >= FIXATION_DURATION
                  and gaze.recent_gaze(GAZE_READY_WINDOW))
-        ring.lineColor = "green" if ready else "red"
+        aligned = drift is not None and drift <= DRIFT_WARN_PX
+        ring.lineColor = "green" if ready and aligned else ("#D58B00" if ready else "red")
 
         ring.draw()
+        if fresh:
+            gaze_w, gaze_h = gaze.screen_size
+            screen_w, screen_h = win.size
+            gaze_dot.pos = (sample[0] / gaze_w * screen_w - screen_w / 2,
+                            screen_h / 2 - sample[1] / gaze_h * screen_h)
+            gaze_dot.draw()
         fixation.draw()
         hint.draw()
         status.draw()
-        overlay.draw()
         win.flip()
 
         keys = event.getKeys(keyList=["return", "num_enter", "space",

@@ -50,7 +50,7 @@ pip install pillow requests torch open_clip_torch mediapipe transformers hugging
 
 ## Running
 
-### From the local dataset folders (recommended)
+### From local image folders
 
 The raw image folders (`Deepfake-vs-Real-60K`, etc.) live **outside** this
 project, in the sibling `Dataset/datasets/` folder (resolved automatically via
@@ -69,7 +69,7 @@ The manifest's `image_url` column is repo-relative, so both `build_manifest.py`
 and `enrich.py` work on any machine/checkout location (see the note on path
 resolution at the bottom).
 
-### From the shared manifests
+### From existing manifests
 
 `enrich.py` reads its source CSVs from the dataset toolchain's
 `../dataset/manifests/` by default (`FINAL_DATASET.csv` and
@@ -94,7 +94,7 @@ python enrich.py --tasks race   --skip-existing
 python enrich.py --sample 50
 ```
 
-Useful flags:
+Options:
 
 - `--csv PATH` — primary source CSV (default `FINAL_DATASET.csv` next to the script)
 - `--extra-csv PATH` — second source CSV (default `DFR60K_manifest.csv`)

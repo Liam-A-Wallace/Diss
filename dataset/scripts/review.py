@@ -48,10 +48,7 @@ try:
     _HAS_TK = True
 except Exception:  # pragma: no cover - headless environments
     _HAS_TK = False
-
-# --------------------------------------------------------------------------
 # Configuration
-# --------------------------------------------------------------------------
 HERE = Path(__file__).resolve().parent
 DEFAULT_CSV = HERE.parent / "manifests" / "DFR60K_manifest.csv"
 METADATA_CSV = HERE.parent / "metadata" / "image_metadata.csv"
@@ -100,11 +97,7 @@ def build_pools(rows: list[dict], seed: int = SEED) -> dict[str, list[dict]]:
         rng.shuffle(pool)
         pools[label] = pool
     return pools
-
-
-# --------------------------------------------------------------------------
 # Output
-# --------------------------------------------------------------------------
 def _copy_image(row: dict, dest: Path) -> bool:
     """Copy a picked image to ``dest``.
 
@@ -224,11 +217,7 @@ def merge_outputs(kept_new: dict[str, list[dict]], existing_rows: list[dict],
     print(f"        real: {counters.get('real', 0)}  fake: {counters.get('fake', 0)}")
     if copy_images and new_rows:
         print(f"[copied] {len(new_rows)} new images -> {copy_dir}")
-
-
-# --------------------------------------------------------------------------
 # Review GUI
-# --------------------------------------------------------------------------
 class ReviewApp:
     DISPLAY = (900, 900)   # fallback box when the label hasn't been laid out yet
 
@@ -256,7 +245,7 @@ class ReviewApp:
         self._build_ui()
         self._show_next()
 
-    # ---- UI ---------------------------------------------------------------
+    # UI
     def _build_ui(self) -> None:
         root = self.root
         root.title("Seeing the Fake — Pick good images")
@@ -341,7 +330,7 @@ class ReviewApp:
                          font=(FONT, 11, "bold"), cursor="hand2",
                          highlightthickness=0)
 
-    # ---- actions ----------------------------------------------------------
+    # actions
     def keep(self) -> None:
         if self.done or self.current_row is None:
             return
@@ -496,7 +485,7 @@ class ReviewApp:
             parts.append(f"{l}: {len(self.kept[l])}/{self.target[l]} kept")
         self.status_var.set("  ".join(parts))
 
-    # ---- finish -----------------------------------------------------------
+    # finish
     def finish(self) -> None:
         if self.done:
             return
@@ -527,11 +516,7 @@ class ReviewApp:
 
     def _quit(self) -> None:
         self._finalize()
-
-
-# --------------------------------------------------------------------------
 # Main
-# --------------------------------------------------------------------------
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Pick good images from a manifest.")
     parser.add_argument("--csv", default=str(DEFAULT_CSV),

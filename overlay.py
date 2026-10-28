@@ -50,12 +50,7 @@ def draw():
 
     raw_x, raw_y = _last
 
-    # GazeFollower reports calibrated gaze in the pixel space of ITS screen
-    # size (config.screen_size), with (0, 0) = top-left and +y downward.
-    # Normalise by that source resolution, then remap into the PsychoPy
-    # window's own pixel space, so a monitor/resolution mismatch between the
-    # tracker and the window can't skew the dot (and when they match, this is
-    # identical to a plain offset/flip).
+    # Scale tracker coordinates to the window; the two resolutions may differ.
     gaze_w, gaze_h = _gaze.screen_size or (1920, 1080)
     screen_w, screen_h = _win.size
 
@@ -66,8 +61,7 @@ def draw():
     target_x = norm_x * screen_w - screen_w / 2
     target_y = screen_h / 2 - norm_y * screen_h
 
-    # Time-constant exponential smoothing: frame-rate independent, smooth and
-    # laggy. Larger GAZE_DOT_TAU = smoother but slower to catch up.
+    # Smooth the dot using elapsed time. A larger tau adds more lag.
     now = core.getTime()
     if _smooth is None:
         _smooth = (target_x, target_y)

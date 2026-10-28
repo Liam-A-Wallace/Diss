@@ -1,47 +1,36 @@
-# Five-photo processing demo
+﻿# Five-image demo
 
-The demo uses three genuine portraits and two generated faces from the curated
-`Dataset/datasets/picked` collection. These are actual image stimuli, not the
-cartoon files currently referenced by the ordinary `trials.csv`. It copies just
-five files to `stimuli/demo` and writes `data/demo_trials.csv`. It does not
-replace the main stimulus list. The order within collection is randomised by
-the normal experiment and recorded in the session logs.
-
-From `Diss`, using a working Python environment with `requirements.txt` installed:
+Run from `Diss` with the experiment environment active:
 
 ```powershell
-python -m tools.demo_landmarks
 python demo.py
+```
+
+The demo uses three real portraits and two generated faces from
+`../Dataset/datasets/picked`. It copies them to `stimuli/demo`, writes
+`data/demo_trials.csv`, and randomises their order during collection.
+
+Enter the participant details and read the instructions, then complete the
+camera preview and calibration in the same window. The portrait check shows
+a blue gaze dot: Enter/Space accepts, R recalibrates, and Esc quits. This check
+is separate from the five trials. The demo skips normal practice and the break.
+
+The ready cross also shows a blue gaze dot. During image viewing, scroll to
+zoom, drag to pan and press Home to reset. Enter/Space advances to the real/fake
+decision and confidence rating. Esc on a task/check screen saves a partial run.
+
+## Results
+
+```powershell
 python analyse.py --test
 ```
 
-1. `tools/demo_landmarks.py` opens a preview of facial landmarks on the five stimulus
-   images and saves original-pixel and normalised coordinates to
-   `processed/demo_landmarks/landmarks.csv`. It uses the existing local
-   `GazeFollower/gazefollower/res/model_weights/face_landmarker.task` and
-   MediaPipe Tasks API. Zero or multiple detected faces are flagged for review.
-   The landmark preview folder is refreshed on rerun.
-2. `demo.py` runs calibration, five self-paced image trials, real/fake responses
-   and confidence ratings. There is no practice trial or halfway break. All
-   recordings go to `data/test`, with the ordinary timing and zoom/pan mapping.
-   Try looking at the eyes, nose and mouth, and zoom/pan on one image.
-   ENTER/SPACE advances, R recalibrates on ready screens, ESC saves a partial run.
-3. `analyse.py --test` selects the latest completed test session and opens its
-   heatmaps, numbered fixation paths and tables. Check the printed session name
-   if you have other test recordings. The plots are based on measured gaze;
-   neither demo script invents eye movements.
+The terminal prints the session and output folder. The browser report shows
+heatmaps and fixation paths, with links to the CSVs in `data_results/`. Check the
+session name if you have several test recordings.
 
-`python demo.py --prepare` prepares just the five images and list.
-`python demo.py --gaze-dot` also shows a live gaze dot; leave it off for a less
-influenced viewing check.
-
-Landmark and gaze coordinates share original-image pixel space: top-left origin,
-x right, y down. Join `landmarks.csv` to analysis `samples.csv` or `fixations.csv`
-by stimulus, then compare `image_x` and `image_y`. Landmark IDs identify points;
-they do not by themselves define facial area masks. These landmarks describe
-the displayed faces, not the participant's webcam face.
-
-For per-region dwell and transitions, after recording the demo:
+For facial-region dwell and transitions, install the AOI dependencies once,
+then generate and inspect the masks:
 
 ```powershell
 python -m pip install -r requirements-aois.txt
@@ -50,8 +39,27 @@ python analyse.py review --test
 python analyse.py --test
 ```
 
-Inspect the generated AOI masks before approving them in the terminal. The
-ordinary scanpath analysis also runs without masks, with regions marked unmapped.
-Webcam accuracy and fixation thresholds still need checking against the locations
-you deliberately looked at; this pilot is a processing check.
+Approve the masks after checking the overlays. Gaze plots also work without
+masks; region labels will be `unmapped`.
 
+## Other commands
+
+| Command | Purpose |
+| --- | --- |
+| `python demo.py --prepare` | Prepare the images and list without opening the camera |
+| `python demo.py --gaze-dot` | Also show a gaze dot during image viewing |
+| `python -m tools.demo_landmarks` | Preview landmarks on the five displayed faces |
+
+Landmarks are saved to `processed/demo_landmarks/landmarks.csv`. That preview
+folder is refreshed on rerun. The detector uses the local MediaPipe model in
+`../GazeFollower/gazefollower/res/model_weights/face_landmarker.task`. Images
+with zero or multiple detected faces are flagged for review.
+
+Landmark and gaze exports use original image pixels: x right, y down, origin at
+the top-left. Join by `stimulus` to compare `image_x` and `image_y` in the
+landmark, sample and fixation tables. Landmark points are separate from the
+masks used for AOI dwell.
+
+Check calibration, dropouts, zoom mapping and fixation settings before
+collecting participant data. The portrait check is subjective; it does not
+measure accuracy. See the [calibration controls](EXPERIMENT.md#calibration-and-image-check).

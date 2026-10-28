@@ -17,10 +17,8 @@ import statistics
 import sys
 import time
 
-import pygame
 
-# Import GazeFollower from the local checkout (not any pip-installed copy) so
-# the model weights shipped in this repo are the ones actually loaded.
+# Use the local SDK checkout and its model files.
 _WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _GAZEFOLLOWER_DIR = os.path.join(_WORKSPACE_ROOT, "GazeFollower")
 if _GAZEFOLLOWER_DIR not in sys.path:
@@ -37,9 +35,7 @@ from gazefollower.misc import DefaultConfig
 import gazefollower_patch
 gazefollower_patch.apply()
 
-# GazeFollower's bundled gaze models. We point at a model here (via
-# GAZE_MODEL) instead of replacing base.mnn, so the upstream checkout stays
-# pristine.
+# Resolve the model path without replacing SDK files.
 _GAZE_MODEL_DIR = os.path.join(_GAZEFOLLOWER_DIR, "gazefollower", "res", "model_weights")
 
 
@@ -131,6 +127,7 @@ class GazeRecorder:
         self.tracker = None
         self._windows = []
         self._sampling = False
+        self._prepared_preview = None
         # monotonic time of the most recent *new* valid sample
         self._last_valid_time = None
         self._last_info_ts = None
@@ -141,14 +138,8 @@ class GazeRecorder:
         self.screen_size = None
 
     def init(self):
-        # build the eye tracker (loads the gaze models) before the experiment
-        # window opens; preview and calibration are run later, in
-        # GazeFollower's own display, after the PsychoPy window is closed.
-        #
-        # The number of calibration points must be set on the config BEFORE
-        # GazeFollower is built: GazeFollower copies config.cali_mode into its
-        # CalibrationController at construction time, so changing it later has
-        # no effect.
+        # Initialise tracking before collection; calibration uses the experiment window.
+        # Set this before construction: the calibration controller copies it.
         cfg = DefaultConfig()
         cfg.cali_mode = CALIBRATION_POINTS
         cfg.enable_face_filter = ENABLE_FACE_FILTER
@@ -178,43 +169,57 @@ class GazeRecorder:
         self.raw_path = base_name + "_gaze_raw.csv"
         self.windows_path = base_name + "_windows.csv"
 
-    def calibrate(self):
-        # let GazeFollower create and manage its own display, exactly as its
-        # documented API expects (preview() / calibrate() with no surface)
+    def prepare_preview(self, win):
+        """Warm the first preview without blocking the Welcome screen."""
+        if self._prepared_preview is None and hasattr(self.tracker, "config_dict"):
+            from gaze_preview import PreparedPreview
+            self._prepared_preview = PreparedPreview(self.tracker, win)
+
+    def preview_ready(self):
+        return self._prepared_preview is None or self._prepared_preview.check_ready()
+
+    def calibrate(self, win, preview=False):
+        """Calibrate and check gaze on the existing experiment window."""
         if not self.tracker:
             return
-
-        print("[GazeFollower] Launching camera preview...")
-        self.tracker.preview()
-        print("[GazeFollower] Starting calibration...")
-        self.tracker.calibrate()
-
-        # GazeFollower's preview/calibrate initialise pygame, which makes
-        # PsychoPy's Mouse read pygame instead of the real window and breaks
-        # mouse clicks. Tear pygame down before the PsychoPy window opens.
-        pygame.quit()
+        from calibration_check import check_image
+        import overlay
+        was_sampling = self._sampling
+        units, colour = win.units, win.color
+        overlay.hide()
+        overlay.reset()
+        try:
+            while True:
+                self.stop_sampling()
+                # The SDK mouse conversion is reliable in pixel units.
+                win.units = "pix"
+                try:
+                    if preview:
+                        if self._prepared_preview is not None:
+                            prepared, self._prepared_preview = self._prepared_preview, None
+                            prepared.show()
+                        else:
+                            self.tracker.preview(win=win)
+                        preview = False
+                    self.tracker.calibrate(win=win)
+                finally:
+                    win.units = units
+                    win.color = colour
+                self._last_valid_time = None
+                self._last_info_ts = None
+                self._recent.clear()
+                self.start_sampling()
+                if check_image(win, self, self.validation_image, self.validation_log):
+                    break
+        finally:
+            win.units = units
+            win.color = colour
+            if not was_sampling:
+                self.stop_sampling()
+            overlay.reset()
 
     def recalibrate(self, win):
-        # Re-run calibration on the existing PsychoPy window. Passing the
-        # window makes GazeFollower use its psychopy backend, so no pygame
-        # fullscreen window is opened mid-experiment.
-        if not self.tracker:
-            return
-
-        # the camera cannot calibrate while sampling, so pause and resume
-        was_sampling = self._sampling
-        self.stop_sampling()
-        print("[GazeFollower] Recalibrating on PsychoPy window...")
-        try:
-            self.tracker.calibrate(win=win)
-        finally:
-            if was_sampling:
-                self.start_sampling()
-
-        # the old calibration is stale; wait for fresh post-calibration samples
-        self._last_valid_time = None
-        self._last_info_ts = None
-        self._recent.clear()
+        self.calibrate(win)
 
     def start_sampling(self):
         if self.tracker and not self._sampling:
@@ -331,7 +336,7 @@ class GazeRecorder:
         return n, (valid / n if n else 0.0)
 
     def checkpoint(self):
-        # copy the live sample stream out so a crash cannot lose it
+        # Checkpoint the live stream to reduce data loss after a crash.
         if self.tracker and self.raw_path:
             try:
                 self.tracker.save_data(self.raw_path)
@@ -350,6 +355,9 @@ class GazeRecorder:
             f.write(SAMPLE_HEADER)
 
     def stop_session(self):
+        if self._prepared_preview is not None:
+            prepared, self._prepared_preview = self._prepared_preview, None
+            prepared.close()
         if not self.tracker:
             return
         try:

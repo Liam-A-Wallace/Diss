@@ -45,7 +45,7 @@ def main() -> None:
     print(f"columns: {list(rows[0].keys())}")
     print()
 
-    # ---- 4. counts by class and by existing cell --------------------------
+    # 4. counts by class and by existing cell
     print("---- counts by label ----")
     for k, v in sorted(Counter(r["label"] for r in rows).items()):
         print(f"  {k:6s} {v}")
@@ -59,7 +59,7 @@ def main() -> None:
         print(line)
     print()
 
-    # ---- 3. confidence distributions -------------------------------------
+    # 3. confidence distributions
     print("---- confidence_score by label ----")
     for lab in common.LABELS:
         vals = sorted(float(r["confidence_score"]) for r in rows if r["label"] == lab)
@@ -68,7 +68,7 @@ def main() -> None:
         print(f"         buckets: {_hist(vals)}")
     print()
 
-    # ---- 5. does confidence separate the existing difficulty labels? ------
+    # 5. does confidence separate the existing difficulty labels?
     print("---- confidence vs existing difficulty (FAKE) ----")
     for d in ("Medium", "Hard"):
         vals = [float(r["confidence_score"]) for r in rows
@@ -79,7 +79,7 @@ def main() -> None:
     print("  => existing Medium/Hard FAKE labels are NOT separable by confidence_score.")
     print()
 
-    # ---- 1./2. what confidence_score means --------------------------------
+    # 1./2. what confidence_score means
     print("---- what does confidence_score represent? ----")
     has_predicted = any("predict" in c.lower() or "prob" in c.lower() for c in rows[0])
     print("  * No predicted-class column present in the CSV "
@@ -91,14 +91,14 @@ def main() -> None:
     print("    This is a model-derived difficulty, not human difficulty.")
     print()
 
-    # ---- confounds --------------------------------------------------------
+    # confounds
     print("---- other confounds with label ----")
     print("  source  :", dict(Counter((r["label"], r["source"]) for r in rows)))
     print("  resolution:", dict(Counter((r["label"], r["resolution"]) for r in rows)))
     print("  image_quality:", dict(Counter((r["label"], r["image_quality"]) for r in rows)))
     print()
 
-    # ---- re-derived difficulty preview ------------------------------------
+    # re-derived difficulty preview
     print("---- re-derived difficulty (confidence tertiles within label) ----")
     difficulty_of = common.derive_difficulty(rows, high_conf_is_easy=True)
     derived = Counter(common.cell_key(r, difficulty_of) for r in rows)
@@ -119,7 +119,7 @@ def main() -> None:
                 print(f"  {lab} {d:7s} n={len(vals):<5} conf {min(vals):.2f}..{max(vals):.2f}")
     print()
 
-    # ---- duplicates -------------------------------------------------------
+    # duplicates
     print("---- duplicates ----")
     ids = Counter(r["image_id"] for r in rows)
     urls = Counter(r["image_url"] for r in rows)
@@ -127,7 +127,7 @@ def main() -> None:
     print(f"  duplicate image_urls: {sum(1 for v in urls.values() if v > 1)}")
     print()
 
-    # ---- metadata coverage ------------------------------------------------
+    # metadata coverage
     print("---- metadata coverage ----")
     print("  gender   :", dict(Counter(r["gender"] for r in rows)))
     print("  age_group:", dict(Counter(r["age_group"] for r in rows)))

@@ -29,9 +29,7 @@ from PIL import Image
 
 HERE = Path(__file__).resolve().parent            # Diss/dataset/scripts
 ROOT = HERE.parent                               # Diss/dataset
-# The raw image corpora live OUTSIDE this project (git-ignored, kept next to
-# Diss/ so the ~20 GB corpus stays out of version control). Override with the
-# RAW_DATA_ROOT env var if you keep them elsewhere.
+# Raw images live beside Diss; RAW_DATA_ROOT can override that location.
 RAW_DATA_ROOT = Path(os.environ.get("RAW_DATA_ROOT") or HERE.parent.parent.parent / "Dataset")
 REPO = RAW_DATA_ROOT.parent                      # root the CSVs' image_url paths are relative to
 DATASETS_DIR = RAW_DATA_ROOT / "datasets"
@@ -126,11 +124,7 @@ def _is_local_path(url: str) -> bool:
     if url.startswith(("http://", "https://", "ftp://")):
         return False
     return resolve_image_path(url) is not None
-
-
-# --------------------------------------------------------------------------
 # Local image path resolution
-# --------------------------------------------------------------------------
 # ``image_url`` values in the CSVs may be absolute (machine-specific), relative
 # to the Dataset folder, or relative to the repo root. Resolve any of those to
 # an actual file so the pipeline works no matter where the repo (and the
@@ -242,11 +236,7 @@ def fetch_image(row: dict, thumbnail: bool = True) -> Image.Image | None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     img.save(dest, "JPEG", quality=92)
     return img
-
-
-# --------------------------------------------------------------------------
 # Face check (used by the optional "face only" pre-filter in curate.py)
-# --------------------------------------------------------------------------
 _HAAR_CASCADE = None
 
 _HAAR_URL = (

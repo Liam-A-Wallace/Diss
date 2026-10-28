@@ -3,7 +3,7 @@ from functools import partial
 
 
 def worker_entry(*args, model_path, lock_exposure, exposure):
-    # Explicit initialization also works when demo.py is the spawn entry module.
+    # The spawned demo worker must apply the patch itself.
     import gazefollower_patch
     gazefollower_patch.apply()
     from gazefollower.multiprocess import mp_worker

@@ -61,7 +61,7 @@ def apply():
             Log.i(f"Camera exposure lock requested: auto_off={auto_off}, "
                   f"exposure={self.exposure} set={set_exp}")
         else:
-            # Explicitly restore auto mode: manual settings may persist in the
+            # Restore auto exposure because manual settings can persist in the
             # camera driver between runs, even after changing the config.
             auto_value = 0.75 if backend == cv2.CAP_V4L2 else 1
             enabled = self._cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, auto_value)

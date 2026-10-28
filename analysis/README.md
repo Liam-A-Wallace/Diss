@@ -49,7 +49,7 @@ Now run python analyse.py again to include AOI dwell and transitions. Add --test
 
 The [face-parsing model](https://huggingface.co/jonathandinu/face-parsing) supplies eyes, eyebrows, nose, mouth/lips, ears, hair, glasses and other skin/background classes. Left/right features are combined into broad regions. Forehead and hairline are explicitly derived approximations based on skin, brows and hair. Tilt, occlusion, bangs and baldness can invalidate them. Low-confidence pixels are uncertain; the confidence score is not a calibrated probability. The model specifies non-commercial research/educational use and needs validation on your generated faces.
 
-## What to open
+## Output files
 
 The web report stays at `processed/SESSION_NAME/index.html`. All analysis CSVs are grouped in `processed/SESSION_NAME/data_results/`, with download links in the report. Plot images and `analysis.json` remain beside the report. Rerunning analysis creates a new report folder and preserves previous exports.
 
@@ -76,7 +76,7 @@ Default analysis uses calibrated screen coordinates. Filtered coordinates remain
 
 ESC preserves the partial viewing interval. An incomplete final display-log line after a hard crash is ignored with a warning; trials without a known offset are omitted and listed in analysis.json. Existing raw-gaze checkpointing still applies; this is not power-loss-proof storage.
 
-## Interpretation and pilot validation
+## Interpreting the results
 
 Observed dwell only counts time between usable samples in the same view with gaps of at most 100 ms. It does not fill missing gaze or extend the final sample. Fractions of total viewing time can therefore sum to less than 1. Heatmaps use this time in a 40 by 40 grid, with Gaussian display smoothing (sigma 1.2 grid cells) and transparent low-density edges. Colour scales are set separately for each trial, so colours are not absolute comparisons across trials. Smoothing affects the picture only; CSV dwell values, fixation detection and AOI calculations use the original samples. The grid and smoothing parameters are recorded in analysis.json.
 
@@ -84,7 +84,7 @@ Exploratory I-DT defaults are a summed x/y range of 0.08 in normalised image uni
 
 Before participant collection, check known locations at 1x, 2x and 4x after zoom, pan and reset; inspect calibration, dropouts and coverage; review every AOI; and compare fixation thresholds against pilot accuracy. Zoom mapping does not correct calibration error.
 
-## Optional controls
+## Other commands
 
 ~~~powershell
 python analyse.py data/OLDER_SESSION_BASE
@@ -92,7 +92,7 @@ python analyse.py --no-open
 python analyse.py --no-plots
 ~~~
 
-If matplotlib is unavailable, the short command reports this and still saves CSVs. The lower-level python -m analysis.process --help exposes coordinate-source and fixation-threshold settings for methodological comparisons. Routine use does not need those options.
+If matplotlib is unavailable, the short command reports this and still saves CSVs. The lower-level python -m analysis.process --help exposes coordinate-source and fixation-threshold settings for methodological comparisons. The default settings are used by analyse.py.
 
 Run regression tests with python -m unittest discover -s tests -v. The sandbox tests use Python 3.12, synthetic data and a mocked display. Live PsychoPy/webcam behaviour, model inference and matplotlib rendering remain unvalidated here because the intended Python 3.10 environment and those dependencies are unavailable.
 

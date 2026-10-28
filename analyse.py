@@ -10,6 +10,47 @@ import webbrowser
 
 ROOT = Path(__file__).resolve().parent
 
+REPORT_STYLE = """
+* { box-sizing: border-box; }
+body { max-width: 1080px; margin: 48px auto; padding: 0 32px;
+       background: #fff; color: #242424; font: 15px/1.6 Arial, sans-serif; }
+h1, h2 { color: #171717; font-family: Georgia, serif; font-weight: normal; }
+h1 { margin: 0; font-size: 36px; line-height: 1.2; }
+h2 { margin: 0; font-size: 24px; }
+a { color: #234e70; text-underline-offset: 3px; }
+a:hover { color: #111; }
+a:focus-visible { outline: 2px solid #234e70; outline-offset: 4px; }
+.report-heading { padding-bottom: 20px; border-bottom: 2px solid #242424; }
+.session { margin: 12px 0 0; font: 12px/1.6 Consolas, monospace;
+           color: #666; overflow-wrap: anywhere; }
+.intro { max-width: 780px; margin: 20px 0 36px; }
+.downloads { margin: 0 0 48px; }
+.downloads p { margin: 6px 0 18px; color: #666; font-size: 13px; }
+table { width: 100%; border-collapse: collapse; text-align: left; }
+th { font-size: 12px; font-weight: normal; color: #666; border-bottom: 1px solid #888; }
+th, td { padding: 10px 16px 10px 0; vertical-align: top; }
+td { border-bottom: 1px solid #e3e3e3; }
+td:first-child { width: 28%; white-space: nowrap; font-family: Consolas, monospace; font-size: 13px; }
+td:last-child { color: #555; }
+article { margin: 44px 0 56px; break-inside: avoid; }
+article header { display: flex; justify-content: space-between; align-items: baseline;
+                 gap: 16px; border-bottom: 1px solid #bbb; padding-bottom: 10px; margin-bottom: 16px; }
+article header a { font-size: 12px; white-space: nowrap; }
+img { display: block; width: 100%; height: auto; }
+article p { margin: 12px 0 0; color: #666; font-size: 13px; max-width: 800px; }
+@media (max-width: 600px) {
+  body { margin: 24px auto; padding: 0 18px; font-size: 14px; }
+  h1 { font-size: 30px; } h2 { font-size: 22px; }
+  td:first-child { width: auto; white-space: normal; overflow-wrap: anywhere; }
+  th, td { padding-right: 12px; }
+}
+@media print {
+  body { max-width: none; margin: 0; padding: 0; color: #000; }
+  article header a { display: none; }
+  a { color: #000; }
+}
+"""
+
 
 def latest_session(data_dir):
     paths = list(Path(data_dir).glob("*_session.json"))
@@ -36,7 +77,7 @@ def unused_output(base):
 
 
 def gallery(path, title, introduction, items):
-    """A local report with compact table links and image cards."""
+    """A local research report with CSV links and full-width figures."""
     path = Path(path)
     links, cards = [], []
     for label, target, is_image, note in items:
@@ -47,37 +88,29 @@ def gallery(path, title, introduction, items):
         except ValueError:
             url = target.as_uri()
         url = escape(url, quote=True)
+        if is_image and target.stem.startswith("trial_") and target.stem.endswith("_qc"):
+            label = "Trial " + target.stem[len("trial_"):-len("_qc")]
         label, note = escape(label), escape(note)
         if is_image:
             cards.append('<article><header><h2>' + label + '</h2><a href="' + url +
                          '">Open image</a></header><a href="' + url + '"><img src="' +
                          url + '" alt="' + label + '" loading="lazy"></a><p>' + note + '</p></article>')
         else:
-            links.append('<a class="table" href="' + url + '" download><strong>' + label +
-                         '</strong><span>' + note + '</span><small>Download CSV &#8599;</small></a>')
+            links.append('<tr><td><a href="' + url + '" download>' + label +
+                         '</a></td><td>' + note + '</td></tr>')
     downloads = ('<section class="downloads"><h2>Data tables</h2>'
                  '<p>CSV files are saved in the data_results folder alongside this report.</p>'
-                 '<div class="table-grid">' + ''.join(links) + '</div></section>') if links else ''
-    document = ('<!doctype html><html lang="en-GB"><meta charset="utf-8">'
+                 '<table><thead><tr><th scope="col">File</th><th scope="col">Contents</th></tr></thead>'
+                 '<tbody>' + ''.join(links) + '</tbody></table></section>') if links else ''
+    heading, separator, session = title.partition(": ")
+    report_heading = ('<header class="report-heading"><h1>' + escape(heading) + '</h1>' +
+                      ('<p class="session">' + escape(session) + '</p>' if separator else '') + '</header>')
+    document = ('<!doctype html><html lang="en-GB"><head><meta charset="utf-8">'
                 '<meta name="viewport" content="width=device-width, initial-scale=1">'
                 '<title>' + escape(title) + '</title><style>'
-                '*{box-sizing:border-box}body{font:16px/1.55 system-ui,sans-serif;max-width:1200px;'
-                'margin:36px auto;padding:0 24px;background:#f3f6fa;color:#18263b}'
-                'h1{font-size:clamp(23px,3vw,32px);overflow-wrap:anywhere;line-height:1.25}'
-                'h2{font-size:19px;margin:0}p{color:#53667e}a{color:#12617e}'
-                '.intro{max-width:850px;margin-bottom:28px}.downloads,article{background:white;'
-                'border:1px solid #dce4ee;border-radius:14px;margin:24px 0;overflow:hidden}'
-                '.downloads{padding:22px}.downloads p{margin-top:6px;font-size:14px}'
-                '.table-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:12px}'
-                '.table{display:flex;flex-direction:column;gap:7px;padding:15px;background:#f7f9fc;'
-                'border:1px solid #e3e9f0;border-radius:9px;text-decoration:none}'
-                '.table:hover{border-color:#16809d;background:#edf8fb}.table span{font-size:13px;color:#53667e}'
-                '.table small{font-size:12px;margin-top:auto}.table strong{font-size:15px}'
-                'article header{display:flex;justify-content:space-between;align-items:center;gap:12px;'
-                'padding:18px 22px}article header a{font-size:13px;white-space:nowrap}'
-                'img{display:block;width:100%;height:auto}article p{padding:0 22px;font-size:14px}'
-                '</style><h1>' + escape(title) + '</h1><p class="intro">' + escape(introduction) +
-                '</p>' + downloads + ''.join(cards) + '</html>')
+                + REPORT_STYLE + '</style></head><body><main>' + report_heading +
+                '<p class="intro">' + escape(introduction) + '</p>' + downloads +
+                ''.join(cards) + '</main></body></html>')
     path.write_text(document, encoding="utf-8")
     return path
 

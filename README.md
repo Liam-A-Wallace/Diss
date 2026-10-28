@@ -3,13 +3,13 @@
 A PsychoPy experiment that records webcam gaze while participants classify face
 images as real or generated and rate their confidence.
 
-## Everyday commands
+## Running the experiment
 
 Run these from `Diss`, with your Python environment active:
 
 | Task | Command |
 | --- | --- |
-| Five-photo pilot with actual curated images | `python demo.py` |
+| Five-image demo | `python demo.py` |
 | Full experiment using `trials.csv` | `python experiment.py` |
 | Analyse the latest five-photo/test recording | `python analyse.py --test` |
 | Generate facial AOI masks for that recording | `python analyse.py aois --test` |
@@ -25,7 +25,7 @@ The normal `trials.csv` still points to the original stimulus paths. Check its
 images before using the full experiment: the five-photo demo prepares its own
 curated photos and does not replace that list.
 
-## Where things live
+## Project folders
 
 | Location | Contents |
 | --- | --- |
@@ -33,7 +33,7 @@ curated photos and does not replace that list.
 | `config.py` | Webcam, exposure, display, timing and experiment settings |
 | Other root Python modules | Experiment UI, tracking, display mapping and recording |
 | `analysis/` | Gaze processing, fixations and facial AOIs |
-| `tools/` | Occasional landmark preview and placeholder generation |
+| `tools/` | Landmark previews and placeholder generation |
 | `docs/` | Demo, experiment and developer guides; cleanup review |
 | `dataset/` | Curation tools, source manifests, metadata and selection outputs |
 | `stimulus-curation/` | Optional image enrichment and an older manifest builder |
@@ -58,6 +58,6 @@ Raw image corpora and GazeFollower live in the sibling `../Dataset/` and
 - [Files to review for possible removal](docs/CLEANUP_REVIEW.md)
 
 Install base dependencies with `python -m pip install -r requirements.txt`.
-Automatic facial AOIs additionally need
+Facial AOI generation also needs
 `python -m pip install -r requirements-aois.txt`. Follow the setup guides for
 the local GazeFollower dependencies and webcam configuration.

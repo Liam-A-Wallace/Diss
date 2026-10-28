@@ -4,6 +4,8 @@ Run with: python experiment.py [--demo] [--placeholder] [--test]
 """
 
 import argparse
+import hashlib
+from pathlib import Path
 import os
 import sys
 import time
@@ -32,7 +34,7 @@ from trials import load_and_verify_trials
 from ui import Button, make_fixation, text
 
 
-#################### Trial ####################
+# Trial
 def build_trial_stims(win, confidence_buttons):
     """Text stimuli that never change between trials, built once."""
     return {
@@ -225,7 +227,7 @@ def _parse_args():
     return parser.parse_args()
 
 
-#################### Main ####################
+# Main
 def main():
     args = _parse_args()
     if not FULLSCREEN or SCREEN != 0:
@@ -240,13 +242,10 @@ def main():
         print(f"[ERROR] {err}", file=sys.stderr)
         return
 
-    # build the eye tracker and calibrate it in GazeFollower's own display
-    # BEFORE the PsychoPy window opens, so the two fullscreen contexts never
-    # overlap
+    # Initialise tracking; calibration runs later on the experiment window.
     gaze = GazeRecorder(camera_index=CAMERA_INDEX)
     try:
         gaze.init()
-        gaze.calibrate()
     except Exception as err:
         print(f"[ERROR] Gaze setup failed: {err}", file=sys.stderr)
         gaze.stop_session()
@@ -356,8 +355,21 @@ def main():
 
     session_status = "error"
     try:
-        if not _show_info(win, gaze, **texts.WELCOME):
+        gaze.prepare_preview(win)
+        # Finish metadata before Welcome so Continue goes straight to preview.
+        from calibration_check import choose_image
+        gaze.validation_image = choose_image(trial_rows, practice_rows)
+        gaze.validation_log = base_name + "_calibration_checks.jsonl"
+        session.metadata["calibration_check_image"] = gaze.validation_image
+        session.metadata["calibration_check_sha256"] = hashlib.sha256(
+            Path(gaze.validation_image).read_bytes()).hexdigest()
+        session.save()
+        if not info_screen(win, **dict(texts.WELCOME, allow_recalibration=False),
+                           continue_when=gaze.preview_ready):
             raise QuitExperiment()
+
+        # All participant entry and instructions are complete before calibration.
+        gaze.calibrate(win, preview=True)
 
         # the camera now samples for the whole session; only the image
         # windows are kept when the gaze file is written

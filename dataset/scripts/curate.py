@@ -49,10 +49,7 @@ try:
     _HAS_TK = True
 except Exception:  # pragma: no cover - headless environments
     _HAS_TK = False
-
-# --------------------------------------------------------------------------
 # Configuration
-# --------------------------------------------------------------------------
 HERE = Path(__file__).resolve().parent
 DISS_DIR = HERE.parent.parent                        # Diss/
 
@@ -90,11 +87,7 @@ MAX_FACES = 1              # a "face only" photo should have exactly one face
 DIFF_ORDER = {"Easy": 0, "Medium": 1, "Hard": 2}
 CELL_ORDER = [("REAL", "Easy"), ("REAL", "Medium"), ("REAL", "Hard"),
               ("FAKE", "Easy"), ("FAKE", "Medium"), ("FAKE", "Hard")]
-
-
-# --------------------------------------------------------------------------
 # GUI theme
-# --------------------------------------------------------------------------
 FONT = "Segoe UI"
 
 COLORS = {
@@ -138,11 +131,7 @@ def load_metadata(csv_path: Path | str = METADATA_CSV) -> dict[str, dict]:
         return {}
     with open(csv_path, encoding="utf-8-sig", newline="") as f:
         return {r.get("image_id", ""): r for r in csv.DictReader(f)}
-
-
-# --------------------------------------------------------------------------
 # Candidate-pool construction
-# --------------------------------------------------------------------------
 def _interleave(a: list[dict], b: list[dict], ratio: float) -> list[dict]:
     """Interleave two lists so ~``ratio`` of the output comes from ``a``."""
     out: list[dict] = []
@@ -204,11 +193,7 @@ def print_pool_summary(label_pools: dict) -> None:
     targets = ", ".join(f"{c[0]}/{c[1]}={CELL_TARGETS[c]}" for c in CELL_ORDER)
     print(f"  targets: {targets}")
     print()
-
-
-# --------------------------------------------------------------------------
 # Output
-# --------------------------------------------------------------------------
 def save_outputs(final_rows: list[dict]) -> None:
     """Copy the final stimuli into Diss/stimuli and write curated.csv."""
     final_rows.sort(key=lambda r: (r["label"], DIFF_ORDER[r["derived_difficulty"]]))
@@ -280,11 +265,7 @@ def write_review_log(log_entries: list[dict]) -> None:
         writer.writeheader()
         writer.writerows(log_entries)
     print(f"[saved] {REVIEW_LOG} ({len(log_entries)} decisions)")
-
-
-# --------------------------------------------------------------------------
 # Review GUI
-# --------------------------------------------------------------------------
 class ReviewApp:
     DISPLAY = (560, 560)
 
@@ -318,7 +299,7 @@ class ReviewApp:
         self._build_ui()
         self._show_next()
 
-    # ---- UI ---------------------------------------------------------------
+    # UI
     def _build_ui(self) -> None:
         root = self.root
         root.title("Seeing the Fake — Stimulus Curation")
@@ -345,7 +326,7 @@ class ReviewApp:
                         bordercolor=COLORS["border"], lightcolor=COLORS["accent"],
                         darkcolor=COLORS["accent"], thickness=10)
 
-        # ---- header ----
+        # header
         header = tk.Frame(root, bg=COLORS["bg"])
         header.pack(fill="x", padx=24, pady=(18, 4))
         tk.Label(header, text="Seeing the Fake — Stimulus Curation",
@@ -354,7 +335,7 @@ class ReviewApp:
         tk.Label(header, textvariable=self.overall_var, font=(FONT, 11),
                  bg=COLORS["bg"], fg=COLORS["muted"]).pack(anchor="w")
 
-        # ---- body: image card + info card ----
+        # body: image card + info card
         body = tk.Frame(root, bg=COLORS["bg"])
         body.pack(fill="both", expand=True, padx=24, pady=12)
 
@@ -407,7 +388,7 @@ class ReviewApp:
                  font=(FONT, 9), bg=COLORS["card"], fg=COLORS["muted"],
                  justify="left", anchor="w").pack(anchor="w", pady=(14, 0))
 
-        # ---- progress ----
+        # progress
         progress = tk.Frame(root, bg=COLORS["bg"])
         progress.pack(fill="x", padx=24, pady=(4, 0))
         self.cell_title_vars: dict = {}
@@ -426,7 +407,7 @@ class ReviewApp:
             bar.pack(fill="x")
             self.cell_bars[cell] = bar
 
-        # ---- controls ----
+        # controls
         controls = tk.Frame(root, bg=COLORS["bg"])
         controls.pack(pady=(14, 6))
         _styled_button(controls, "Easy  (1)", lambda: self.keep_as("Easy"),
@@ -455,7 +436,7 @@ class ReviewApp:
         self.root.bind("<Escape>", lambda e: self._quit())
         self.root.protocol("WM_DELETE_WINDOW", self._quit)
 
-    # ---- helpers ----------------------------------------------------------
+    # helpers
     def _first_incomplete(self):
         for c in CELL_ORDER:
             if len(self.kept[c]) < self.target[c]:
@@ -535,7 +516,7 @@ class ReviewApp:
         self.current_row = None
         self._show_next()
 
-    # ---- actions ----------------------------------------------------------
+    # actions
     def keep_hint(self) -> None:
         """Keep using the confidence-derived hint (default Medium)."""
         if self.current_row is None:
@@ -651,7 +632,7 @@ class ReviewApp:
         self.photo = ImageTk.PhotoImage(img)
         self.image_label.configure(image=self.photo, text="")
 
-    # ---- finish -----------------------------------------------------------
+    # finish
     def finish(self) -> None:
         if self.done:
             return
@@ -683,11 +664,7 @@ class ReviewApp:
         # save the decision log on quit, even mid-review
         write_review_log(self.log_entries)
         self.root.quit()
-
-
-# --------------------------------------------------------------------------
 # Main
-# --------------------------------------------------------------------------
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Curate the Study 1 stimulus set.")
     parser.add_argument("--csv", default=str(common.DATASET_CSV),

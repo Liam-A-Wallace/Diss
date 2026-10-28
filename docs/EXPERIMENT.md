@@ -1,147 +1,106 @@
-# Seeing the Fake — Study 1
+﻿# Experiment setup and controls
 
-Minimal, git-friendly PsychoPy **Coder** experiment for the Study 1 core trial
-loop: fixation cross → face image → real/fake classification → confidence
-rating. Eye tracking is handled by GazeFollower (see `gaze.py`).
-
-## Layout
-
-- `experiment.py` — main experiment script (window, trial loop, data saving)
-- `gaze.py` — `GazeRecorder` wrapper around the GazeFollower SDK (continuous sampling, image-window trimming)
-- `gazefollower_patch.py` — camera exposure lock, applied on top of the unmodified GazeFollower checkout
-- `tools/make_placeholders.py` — generates placeholder face images + `trials_placeholder.csv`
-- `config.py` / `ui.py` / `screens.py` / `texts.py` / `errors.py` / `trials.py` — constants, drawing primitives, screens, participant text, exceptions, trial-list loading
-- `trials.csv` — stimulus list (`stimulus`, `condition`, `difficulty`)
-- `practice.csv` — optional practice stimuli (same columns); otherwise the first trial(s) of the list are used and not repeated
-- `data/` — per-participant output (gitignored); `--test` runs go to `data/test/`
-
-## Setup
-
-Requires Python 3.10 or 3.11 (3.10 recommended for PsychoPy wheel compatibility).
+Collection needs a display, webcam and working OpenGL drivers. Install Python
+3.10 or 3.11 and the dependencies in a virtual environment:
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-Or with conda:
-
-```powershell
-conda create -n seeingthefake python=3.10
-conda activate seeingthefake
-pip install -r requirements.txt
-```
-
-Note: running the experiment needs a display (it opens a window). Windows also
-requires working OpenGL drivers.
-
-## Running
-
-```powershell
-# Run the experiment on the real stimulus list (trials.csv)
-python experiment.py
-
-# Or try it with generated placeholder stimuli
-python experiment.py --placeholder
-```
-
-### View gaze analysis
-
-Install once, then analyse your latest participant session:
-
-~~~powershell
 python -m pip install -r requirements.txt
-python analyse.py
-~~~
-
-A local results page opens with heatmaps, fixations and CSV tables. For a test
-session, use python analyse.py --test. To add facial regions, install
-requirements-aois.txt, then run python analyse.py aois and python analyse.py review
-once for your stimulus set. The model download is automatic.
-
-See [the analysis guide](../analysis/README.md) for AOI review and data definitions.
-Scroll zoom (1–4x), drag-to-pan and HOME reset are available during image viewing.
-
-### Command-line flags
-
-`python experiment.py` accepts the following flags:
-
-| Flag | Effect |
-|------|--------|
-| `--demo` | Draw the live gaze point on screen (debug overlay). |
-| `--placeholder` | Generate placeholder stimuli on the fly and run on `trials_placeholder.csv` instead of `trials.csv` — useful while the real stimulus set is still being curated. |
-| `--test` | Write output to `data/test/` so test runs don't mix with participant data. |
-
-Flags can be combined, e.g.:
-
-```powershell
-python experiment.py --demo --placeholder
 ```
 
-### Keyboard controls
+GazeFollower is imported from `../GazeFollower`. Install its runtime dependencies
+in the same environment; see [the SDK README](../../GazeFollower/README.md).
 
-- **ENTER / SPACE** — continue / advance through screens.
-- **R** — recalibrate the eye tracker (on instruction, break and ready screens).
-- **ESC** — quit early (data collected so far is still saved).
+Run from `Diss`:
 
-Flow: the eye tracker is previewed and calibrated first, then:
+| Command | Run |
+| --- | --- |
+| `python experiment.py` | Full experiment using `trials.csv` |
+| `python demo.py` | Five curated images; output in `data/test` |
+| `python experiment.py --test` | Full trial list; output in `data/test` |
+| `python experiment.py --demo` | Full trial list with a gaze dot during image viewing |
+| `python experiment.py --placeholder` | Generate and use cartoon placeholders |
 
-1. Enter a participant ID and read the instructions.
-2. Complete the practice trial(s) (no feedback).
-3. For each trial: ready cross (checks the tracker sees the participant and
-   that gaze is near the cross; offers R if it has drifted), face image
-   (ENTER/SPACE to continue), click REAL or FAKE, then click a 1–5
-   confidence button.
-4. A rest break (with the option to recalibrate) halfway through.
+Flags can be combined. The placeholder generator writes to `stimuli/real` and
+`stimuli/fake`; check their contents before using it.
 
-Progress is checkpointed every few trials, so a crash does not lose the session.
+`trials.csv` needs `stimulus`, `condition` and `difficulty` columns. Image paths
+are relative to `Diss`. Optional `practice.csv` uses the same format. Otherwise,
+the configured number of initial trials is reserved for practice.
 
-## Output
+## Calibration and image check
 
-For each session, `data/` receives:
+Participant details and task instructions come first. Camera preview,
+calibration and trials use the same fullscreen window. Collection requires the
+primary calibration monitor (`FULLSCREEN=True`, `SCREEN=0`).
 
-- `<participant>_<session>_<date>.csv` — one row per trial (practice rows have
-  `is_practice=1`) with `stimulus`, `condition`, `difficulty`, `response`,
-  `correct`, `rt_classification`, `confidence`, `rt_confidence`, `view_time`,
-  `onset_ns`/`offset_ns`, `drift_px`, `gaze_samples`, `gaze_valid_frac`,
-  `dropped_frames`, plus participant/session/seed metadata.
-- `<participant>_<session>_<date>_gaze.csv` — gaze samples recorded only while
-  an image was on screen, with `trial`, `is_practice`, `condition` and
-  `t_rel_ms` (time since image onset).
-- `<participant>_<session>_<date>_gaze_raw.csv` — every sample of the session.
-- `<participant>_<session>_<date>_windows.csv` — image onset/offset per trial;
-  with the raw file it can rebuild the trimmed file after a crash
-  (`gaze.trim_gaze_file`).
-- `<participant>_<session>_<date>.psydat` — PsychoPy pickle of the full run.
+A portrait appears after each calibration. Look at its eyes, nose and mouth and
+check whether the blue gaze dot follows. Enter/Space accepts, R repeats
+calibration, and Esc quits at the check. Acceptance requires fresh tracking and
+at least one second of viewing. The dot hides when tracking is lost; filtered
+gaze can lag slightly behind eye movement.
 
-## Eye tracking
+The check prefers an unused curated portrait, with a practice/task image as a
+fallback. Session metadata records the image and its hash. Attempts are logged
+in `_calibration_checks.jsonl` and excluded from trial analysis. This is a
+subjective check, not a measured accuracy validation.
 
-Gaze tracking uses [GazeFollower](https://github.com/Gancheng-Zhu/GazeFollower)
-(Zhu et al., 2025, "GazeFollower: An open-source system for deep learning-based
-gaze tracking with web cameras", ACM CGIT), licensed under
-CC BY-NC-SA 4.0. Use here is strictly non-commercial academic research.
+## Trial controls
 
-If you request the 32M base model from the authors, use a university email and
-state that it is for academic research only.
+The full experiment has practice trials, the main task and a halfway break.
+The five-image demo skips normal practice and the break. Each trial has a ready
+cross, image viewing, real/fake classification and confidence rating from 1 to 5.
 
-The gaze model is selected by `GAZE_MODEL` in `config.py` (default
-`base_32M.mnn`, the newer 32M model). It is passed to GazeFollower at runtime
-via `gaze.py`, so the upstream GazeFollower checkout is left untouched — no
-model files are replaced in the repo.
+| Control | Action |
+| --- | --- |
+| Enter/Space | Advance or accept the calibration check |
+| Mouse wheel over the image | Zoom between 1x and 4x |
+| Left-button drag | Pan the image |
+| Home | Reset the view |
+| R on a ready/instruction screen | Recalibrate and repeat the portrait check |
+| Esc on a task/check screen | Quit and save the partial run |
 
-## Notes / next steps
+The ready cross shows a blue gaze dot. Its ring is red while waiting for
+tracking, amber for off-centre gaze and green when recent gaze is near the
+cross. Look at the fixed cross rather than following the dot. A drift warning
+can be overridden on the second attempt to continue.
 
-- The stimulus set is a placeholder until a real dataset is chosen (see the
-  dissertation plan). `tools/make_placeholders.py` writes `trials_placeholder.csv`
-  only; edit `trials.csv` by hand for the real set.
-- `stimuli/` and `data/` are gitignored.
-- Camera exposure is currently fixed at -5 for this webcam. Check the preview
-  and tune `CAMERA_EXPOSURE` in `config.py` before calibration; automatic mode
-  is available through `LOCK_CAMERA_EXPOSURE = False`.
-- Eye tracking is handled by GazeFollower via `gaze.py`; no C++ wrapper needed.
+## Camera settings
 
-### Five-photo pilot
+`CAMERA_INDEX`, `LOCK_CAMERA_EXPOSURE` and `CAMERA_EXPOSURE` are in `config.py`.
+Check the preview in the room and lighting used for collection. Supported
+exposure values depend on the webcam driver. Restart after changing them.
 
-See [five-photo guide](../docs/DEMO.md) for a five-photo run using actual curated portraits, facial-landmark previews and measured scanpath analysis.
+`GAZE_MODEL` selects a model by filename in the SDK model folder, or by path.
+`gaze_worker.py` passes that choice and the exposure settings to the worker.
+Recordings made before this fix may have used SDK defaults despite different
+settings in their session metadata.
 
+## Recording files
+
+Each session in `data/` (or `data/test/`) produces:
+
+| Suffix | Contents |
+| --- | --- |
+| `.csv` | Responses, confidence, timing and quality fields |
+| `_gaze_raw.csv` | Session gaze stream |
+| `_gaze.csv` | Samples trimmed to image-viewing intervals |
+| `_windows.csv` | Image onset and offset timestamps |
+| `_gaze_image.csv` | Gaze mapped to original image coordinates |
+| `_display.jsonl` | Image positions, scales and display changes |
+| `_session.json` | Session details, settings and image hashes |
+| `_calibration_checks.jsonl` | Portrait-check outcomes |
+| `.psydat` | PsychoPy session pickle |
+
+Keep source recordings, timing sidecars and stimulus images together.
+Checkpoints reduce losses from a crash but cannot guarantee recovery after
+power loss. See the [analysis guide](../analysis/README.md) for processing.
+
+## GazeFollower
+
+This project uses [GazeFollower](https://github.com/Gancheng-Zhu/GazeFollower)
+(Zhu et al., 2025, ACM CGIT), licensed under CC BY-NC-SA 4.0, for non-commercial
+academic research. Models are selected at runtime rather than replaced in the
+SDK checkout. Requests for the 32M model should use a university email and
+state the academic research purpose.

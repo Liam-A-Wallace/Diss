@@ -1,4 +1,4 @@
-﻿"""Offline face parsing, reviewable label masks, and explicit derived AOIs."""
+"""Offline face parsing, reviewable label masks, and explicit derived AOIs."""
 import argparse
 import csv
 import hashlib
@@ -35,7 +35,7 @@ def derive_regions(labels, confidence, id2label, min_confidence=0.6):
     brows_y, _ = np.where(mask == 5)
     notes = []
     if brows_y.size:
-        # Explicit approximation, NOT a learned forehead/hairline class.
+        # Forehead and hairline are geometric approximations, not model classes.
         # Broad horizontal brow cutoff is unsuitable for strongly tilted faces.
         cutoff = int(np.percentile(brows_y, 10))
         upper = np.indices(mask.shape)[0] < cutoff

@@ -7,7 +7,7 @@ from config import (ACCENT, BTN_FILL, BTN_HOVER, BTN_LINE, FONT, PANEL,
                     PANEL_LINE, TEXT)
 
 
-#################### Drawing helpers ####################
+# Drawing helpers
 def rounded_vertices(w, h, r, n=8):
     r = min(r, w / 2, h / 2)
     # each corner is a quarter-arc; the 3rd value is its start angle

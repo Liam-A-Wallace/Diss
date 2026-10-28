@@ -46,7 +46,7 @@ import sys
 import time
 from pathlib import Path
 
-# Best-effort: quiet MediaPipe/TFLite's noisy per-image warning lines.
+# Reduce repeated MediaPipe/TFLite logging.
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 os.environ.setdefault("GLOG_minloglevel", "2")
 
@@ -89,11 +89,7 @@ FACE_MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/face_detector/"
     "blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
 )
-
-
-# --------------------------------------------------------------------------
 # Lazy backends (each guarded by a "failed" flag so we warn once, not per image)
-# --------------------------------------------------------------------------
 _clip = None
 _clip_failed = False
 _face_detector = None
@@ -177,11 +173,7 @@ def backend_status() -> dict:
                      ("transformers", "transformers")):
         status[key] = importlib.util.find_spec(mod) is not None
     return status
-
-
-# --------------------------------------------------------------------------
 # Per-image analysis
-# --------------------------------------------------------------------------
 _text_feat = None
 
 
@@ -335,11 +327,7 @@ def compute_attribute_batch(imgs, name: str) -> list:
     for pos, i in enumerate(idx_map):
         out[i] = {col: labels[pos]}
     return out
-
-
-# --------------------------------------------------------------------------
 # Main
-# --------------------------------------------------------------------------
 def _write_csv(path: Path, table: dict) -> None:
     with open(path, "w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDS)
