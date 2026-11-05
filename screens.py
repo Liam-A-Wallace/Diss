@@ -5,7 +5,7 @@ import re
 
 from config import (ACCENT, BTN_FILL, BTN_HOVER, BTN_LINE, DRIFT_WARN_PX,
                     DRIFT_WINDOW_S, FACE_LOST_AFTER, FIXATION_DURATION,
-                    GAZE_READY_WINDOW, ITI_DURATION, MUTED, PANEL, PANEL_LINE,
+                    FONT, GAZE_READY_WINDOW, ITI_DURATION, MUTED, PANEL, PANEL_LINE,
                     TEXT)
 from errors import QuitExperiment, RecalibrateRequest
 from ui import Button, rounded_rect, text
@@ -268,6 +268,50 @@ def wait_for_click(win, mouse, buttons, extras=()):
 
         if hovered is not None and mouse.getPressed()[0]:
             return hovered.value, rt_clock.getTime()
+
+
+def explanation_screen(win, mouse, response, counter):
+    """Collect an optional explanation after the decision and confidence rating."""
+    label = "AI-generated" if response == "fake" else "real"
+    prompt = text(win, f"What led you to decide this image was {label}?",
+                  (0, 0.31), height=0.039, bold=True, wrap=1.35)
+    hint = text(win, "Optional: write any reasons, or leave blank. Click CONTINUE when finished.",
+                (0, 0.22), height=0.025, color=MUTED, wrap=1.3)
+    box = visual.TextBox2(
+        win, text="", font=FONT, pos=(0, -0.015), units="height",
+        size=(1.30, 0.34), letterHeight=0.03, color=TEXT,
+        fillColor=PANEL, borderColor=ACCENT, padding=0.02,
+        alignment="top-left", overflow="scroll", editable=True, autoLog=False,
+        placeholder="Type your reasons here (optional)...",
+    )
+    button = Button(win, "CONTINUE", (0, -0.32), (0.34, 0.085),
+                    "continue", text_height=0.032)
+    clock = core.Clock()
+    event.clearEvents()
+    win.callOnFlip(clock.reset)
+    win.mouseVisible = True
+    box.hasFocus = True
+    was_pressed = bool(mouse.getPressed()[0])
+    try:
+        while True:
+            if "escape" in event.getKeys(keyList=["escape"]):
+                raise QuitExperiment()
+            hovered = button.contains(mouse.getPos())
+            counter.draw()
+            prompt.draw()
+            hint.draw()
+            box.draw()
+            button.draw(hovered)
+            overlay.draw()
+            win.flip()
+            pressed = bool(mouse.getPressed()[0])
+            if pressed and not was_pressed and hovered:
+                return box.text.strip(), clock.getTime()
+            was_pressed = pressed
+    finally:
+        # Remove the editable from the window so later screens don't receive text.
+        box.editable = False
+        event.clearEvents()
 
 
 def run_ready(win, fixation, gaze):

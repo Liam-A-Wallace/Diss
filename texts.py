@@ -12,7 +12,7 @@ WELCOME = dict(
         ("Make your decision",
          "Press ENTER when you are ready, then click REAL or FAKE."),
         ("Rate your confidence",
-         "Click a number from 1 (guessing) to 5 (very sure)."),
+         "Click a number from 1 (guessing) to 5 (very sure). Then optionally type your reasons and click CONTINUE."),
     ],
 )
 

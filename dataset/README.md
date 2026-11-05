@@ -38,10 +38,9 @@ them elsewhere). Image paths inside the manifests are **repo-root-relative**
 
 ## Selecting images
 
-Use the Diss venv:
+Run from the repository root with the project environment active:
 
 ```powershell
-cd c:\Users\LiamW\Documents\uni\y4\Diss
 .venv\Scripts\activate
 
 # 1. review + pick images (defaults to manifests/DFR60K_manifest.csv)

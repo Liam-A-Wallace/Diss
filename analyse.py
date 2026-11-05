@@ -25,6 +25,12 @@ a:focus-visible { outline: 2px solid #234e70; outline-offset: 4px; }
            color: #666; overflow-wrap: anywhere; }
 .intro { max-width: 780px; margin: 20px 0 36px; }
 .downloads { margin: 0 0 48px; }
+.analysis-section { margin: 0 0 36px; }
+.analysis-section p { color: #555; font-size: 13px; }
+.table-scroll { overflow-x: auto; }
+.quality th, .quality td { white-space: nowrap; padding-right: 20px; }
+.quality td:first-child { width: auto; font: inherit; }
+.quality th abbr { text-decoration: none; }
 .downloads p { margin: 6px 0 18px; color: #666; font-size: 13px; }
 table { width: 100%; border-collapse: collapse; text-align: left; }
 th { font-size: 12px; font-weight: normal; color: #666; border-bottom: 1px solid #888; }
@@ -76,7 +82,7 @@ def unused_output(base):
     return output
 
 
-def gallery(path, title, introduction, items):
+def gallery(path, title, introduction, items, summary_html=""):
     """A local research report with CSV links and full-width figures."""
     path = Path(path)
     links, cards = [], []
@@ -109,7 +115,7 @@ def gallery(path, title, introduction, items):
                 '<meta name="viewport" content="width=device-width, initial-scale=1">'
                 '<title>' + escape(title) + '</title><style>'
                 + REPORT_STYLE + '</style></head><body><main>' + report_heading +
-                '<p class="intro">' + escape(introduction) + '</p>' + downloads +
+                '<p class="intro">' + escape(introduction) + '</p>' + summary_html + downloads +
                 ''.join(cards) + '</main></body></html>')
     path.write_text(document, encoding="utf-8")
     return path
@@ -194,7 +200,52 @@ def review_aois(aoi_dir, open_report=True):
     print("AOI review saved. Run python analyse.py" + (" --test" if aoi_dir.name == "test" else ""))
 
 
-def analyse(base, aoi_dir, plots=True, open_report=True):
+def analysis_summary(features, settings):
+    """Render descriptive quality and the exact settings saved with the results."""
+    rows, notes = [], []
+    for f in features:
+        values = [str(f["trial"]), f"{f['saved_sample_hz']:.1f}",
+                  f"{f['valid_fraction']:.0%}", f"{f['on_image_fraction']:.0%}",
+                  f"{f['observed_fraction']:.0%}", str(f["sample_gap_count"]),
+                  str(f["scanpath_step_count"]), str(f["scanpath_rejected_count"])]
+        rows.append('<tr>' + ''.join('<td>' + escape(v) + '</td>' for v in values) + '</tr>')
+        if f["quality_notes"]:
+            notes.append('<li>Trial ' + escape(str(f["trial"])) + ': ' + escape(f["quality_notes"]) + '</li>')
+    headings = ("Trial", "Samples/s", "Valid samples", "On-image samples", "Observed time",
+                "Sample gaps", "Links", "Unlinked pairs")
+    quality = ('<section class="analysis-section"><h2>Recording quality</h2>'
+               '<p>Sample rate is measured from saved, unique timestamps. Valid and on-image percentages '
+               'describe received samples; observed time counts only intervals supported by usable samples '
+               'in the same view. These values do not measure spatial accuracy. Trials are not automatically excluded.</p>'
+               '<div class="table-scroll"><table class="quality"><thead><tr>' +
+               ''.join('<th scope="col">' + h + '</th>' for h in headings) + '</tr></thead><tbody>' +
+               ''.join(rows) + '</tbody></table></div>' +
+               ('<ul>' + ''.join(notes) + '</ul>' if notes else '') + '</section>')
+    link_limit = settings["link_max_gap_ms"]
+    policy = ("Consecutive fixations within an uninterrupted segment; no additional interval limit"
+              if link_limit is None else f"Same segment and inter-fixation interval at most {link_limit:g} ms")
+    methods = [
+        ("Gaze coordinates", settings["coordinate_source"]),
+        ("Fixation detector", "I-DT in normalised original-image coordinates"),
+        ("Minimum fixation duration", f"{settings['min_duration_ms']:g} ms"),
+        ("Dispersion limit", f"{settings['dispersion']:g} (horizontal range / width + vertical range / height)"),
+        ("Maximum sample interval", f"{settings['sample_max_gap_ms']:g} ms; invalid/off-image samples and view changes also split segments"),
+        ("Fixation links", policy),
+        ("Missing data", "No interpolation"),
+    ]
+    return quality + ('<section class="analysis-section"><h2>Processing rules</h2><table><tbody>' +
+                      ''.join('<tr><td>' + escape(label) + '</td><td>' + escape(value) + '</td></tr>'
+                              for label, value in methods) + '</tbody></table>'
+                      '<p>Arrows indicate detected fixation order, not measured saccade trajectories. '
+                      'Dashed arrows mark longer intervals within a continuously recorded segment. '
+                      'Missing tracking, off-image intervals and view changes stop paths. '
+                      'Every candidate pair and its decision are listed in link_decisions.csv. '
+                      'Spatial and temporal thresholds require pilot validation.</p></section>')
+
+
+def analyse(base, aoi_dir, plots=True, open_report=True, *, sample_max_gap_ms=100,
+            link_max_gap_ms=None, min_duration_ms=100, dispersion=0.08,
+            coordinate_source="calibrated"):
     from analysis.process import process
     output = unused_output(base)
     manifest = aoi_dir / "manifest.json"
@@ -204,19 +255,25 @@ def analyse(base, aoi_dir, plots=True, open_report=True):
     if plots and importlib.util.find_spec("matplotlib") is None:
         print("Plots unavailable. Saving CSVs; install plots with: python -m pip install -r requirements.txt")
         plots = False
-    features = process(base, output, aois=aois, plots=plots)
+    features = process(base, output, aois=aois, plots=plots, max_gap_ms=sample_max_gap_ms,
+                       link_max_gap_ms=link_max_gap_ms, min_duration_ms=min_duration_ms,
+                       dispersion=dispersion, coordinate_source=coordinate_source)
+    settings = json.loads((output / "analysis.json").read_text(encoding="utf-8"))
     descriptions = {"features.csv": "Responses, quality and trial summaries",
                     "samples.csv": "Individual gaze samples and coordinates",
                     "fixations.csv": "Fixation locations, order and duration",
                     "aoi_dwell.csv": "Time spent in each facial region",
                     "scanpaths.csv": "Fixation-to-fixation distances, directions and timing",
-                    "transitions.csv": "Changes between facial regions"}
+                    "transitions.csv": "Changes between facial regions",
+                    "quality.csv": "Sampling rate, missing intervals and recording coverage per trial",
+                    "link_decisions.csv": "Every consecutive fixation pair, including rejected links and reasons"}
     items = [(p.name, p, False, descriptions.get(p.name, "Analysis table"))
              for p in sorted((output / "data_results").glob("*.csv"))]
-    items += [(p.name, p, True, "Smoothed dwell overlay and numbered exploratory fixations; arrows stop at gaps or view changes.") for p in sorted(output.glob("*_qc.png"))]
+    items += [(p.name, p, True, "Numbered exploratory fixations. Arrows show order; dashed arrows indicate longer intervals within a segment. Tracking breaks and view changes stop paths.") for p in sorted(output.glob("*_qc.png"))]
     report = gallery(output / "index.html", "Gaze analysis: " + base.name,
                      str(len(features)) + " trials. Practice and interrupted trials are flagged in the tables. " +
-                     ("Reviewed AOI masks used." if aois else "No AOIs used; regions are labelled unmapped."), items)
+                     ("Reviewed AOI masks used." if aois else "No AOIs used; regions are labelled unmapped."),
+                     items, summary_html=analysis_summary(features, settings))
     print("Results:", report)
     print("CSV folder:", output / "data_results")
     if open_report:
@@ -230,6 +287,15 @@ def main(argv=None):
     parser.add_argument("--test", action="store_true", help="use data/test and aois/test")
     parser.add_argument("--no-open", action="store_true", help="save the report without opening a browser")
     parser.add_argument("--no-plots", action="store_true", help="CSV analysis only")
+    parser.add_argument("--sample-max-gap-ms", type=float, default=100,
+                        help="maximum sample interval within a fixation segment (default: 100 ms)")
+    parser.add_argument("--link-max-gap-ms", type=float,
+                        help="optional interval limit for links within a segment; 100 reproduces the earlier link rule")
+    parser.add_argument("--min-duration-ms", type=float, default=100,
+                        help="minimum fixation duration (default: 100 ms)")
+    parser.add_argument("--dispersion", type=float, default=0.08,
+                        help="normalised image dispersion threshold (default: 0.08)")
+    parser.add_argument("--coordinate-source", choices=("calibrated", "filtered"), default="calibrated")
     args = parser.parse_args(argv)
     data_dir = ROOT / "data" / "test" if args.test else ROOT / "data"
     aoi_dir = ROOT / "aois" / ("test" if args.test else "main")
@@ -240,7 +306,10 @@ def main(argv=None):
             review_aois(aoi_dir, not args.no_open)
         else:
             base = latest_session(data_dir) if args.target == "latest" else ROOT / args.target
-            analyse(base, aoi_dir, not args.no_plots, not args.no_open)
+            analyse(base, aoi_dir, not args.no_plots, not args.no_open,
+                    sample_max_gap_ms=args.sample_max_gap_ms, link_max_gap_ms=args.link_max_gap_ms,
+                    min_duration_ms=args.min_duration_ms, dispersion=args.dispersion,
+                    coordinate_source=args.coordinate_source)
     except ModuleNotFoundError as error:
         parser.exit(1, "Missing dependency: " + str(error.name) + ". Install: python -m pip install -r requirements.txt\n")
     except (OSError, ValueError) as error:

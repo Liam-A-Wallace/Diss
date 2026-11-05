@@ -1,7 +1,7 @@
 # Seeing the Fake - Study 1
 
 A PsychoPy experiment that records webcam gaze while participants classify face
-images as real or generated and rate their confidence.
+images as real or generated, rate their confidence, and optionally explain their decision.
 
 ## Running the experiment
 
@@ -12,6 +12,7 @@ Run these from `Diss`, with your Python environment active:
 | Five-image demo | `python demo.py` |
 | Full experiment using `trials.csv` | `python experiment.py` |
 | Analyse the latest five-photo/test recording | `python analyse.py --test` |
+| Compare with the earlier strict fixation-link rule | `python analyse.py --test --link-max-gap-ms 100` |
 | Generate facial AOI masks for that recording | `python analyse.py aois --test` |
 | Inspect and approve those masks | `python analyse.py review --test` |
 | Analyse the latest participant recording | `python analyse.py` |

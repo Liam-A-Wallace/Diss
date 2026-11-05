@@ -7,15 +7,44 @@ import math
 import statistics
 
 
-def scanpath(fixations, max_gap_ms=100):
+def link_decisions(fixations, max_gap_ms=100):
+    """Classify every neighbouring pair. None allows all within-segment intervals.
+
+    A link denotes observed fixation order, never a measured saccade trajectory.
+    Missing samples and display changes remain hard boundaries in either mode.
+    """
+    if max_gap_ms is not None and (not math.isfinite(max_gap_ms) or max_gap_ms <= 0):
+        raise ValueError("Link interval must be positive and finite, or None")
+    decisions = []
+    for a, b in zip(fixations, fixations[1:]):
+        interval = b["start_ms"] - a["end_ms"]
+        if a.get("frame_index") != b.get("frame_index"):
+            reason = "view_change"
+        elif a["segment"] != b["segment"]:
+            reason = "segment_break"
+        elif interval < 0:
+            reason = "overlapping_events"
+        elif max_gap_ms is not None and interval > max_gap_ms:
+            reason = "link_interval_exceeded"
+        else:
+            reason = "within_segment"
+        decisions.append(dict(from_fixation=a["fixation"], to_fixation=b["fixation"],
+                              inter_fixation_ms=interval, accepted=int(reason == "within_segment"),
+                              reason=reason, from_segment=a["segment"], to_segment=b["segment"]))
+    return decisions
+
+
+def scanpath(fixations, max_gap_ms=100, decisions=None):
+    decisions = link_decisions(fixations, max_gap_ms) if decisions is None else decisions
     steps = []
     segment = 0
-    for a, b in zip(fixations, fixations[1:]):
-        if a["segment"] != b["segment"] or not 0 <= b["start_ms"] - a["end_ms"] <= max_gap_ms:
+    for a, b, decision in zip(fixations, fixations[1:], decisions):
+        if not decision["accepted"]:
             segment += 1
             continue
         dx, dy = b["image_u"] - a["image_u"], b["image_v"] - a["image_v"]
         steps.append(dict(path_segment=segment, from_fixation=a["fixation"], to_fixation=b["fixation"],
+                          link_kind="fixation_order",
                           from_aoi=a.get("aoi", "unmapped"), to_aoi=b.get("aoi", "unmapped"),
                           start_ms=a["end_ms"], end_ms=b["start_ms"],
                           inter_fixation_ms=b["start_ms"] - a["end_ms"],
@@ -36,6 +65,8 @@ def scanpath(fixations, max_gap_ms=100):
                 and a["direction_degrees"] != "" and b["direction_degrees"] != ""):
             turns.append(abs((b["direction_degrees"] - a["direction_degrees"] + 180) % 360 - 180))
     summary = dict(scanpath_step_count=len(steps),
+                   scanpath_candidate_count=len(decisions),
+                   scanpath_rejected_count=len(decisions) - len(steps),
                    scanpath_segment_count=len(fixations) - len(steps),
                    scanpath_mean_step_image_units=statistics.mean(distances) if distances else "",
                    scanpath_max_step_image_units=max(distances) if distances else "",
@@ -43,4 +74,6 @@ def scanpath(fixations, max_gap_ms=100):
                    scanpath_straightness=displacement / length if length else "",
                    scanpath_mean_turn_degrees=statistics.mean(turns) if turns else "",
                    total_fixation_duration_ms=sum(f["duration_ms"] for f in fixations))
+    for reason in ("view_change", "segment_break", "overlapping_events", "link_interval_exceeded"):
+        summary["scanpath_rejected_" + reason] = sum(d["reason"] == reason for d in decisions)
     return summary, steps

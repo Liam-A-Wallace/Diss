@@ -60,14 +60,30 @@ class WorkflowTests(unittest.TestCase):
             self.assertTrue((root / "processed/session_2/data_results/features.csv").is_file())
             self.assertFalse((root / "processed/newer_test").exists())
             output = root / "processed/session"
-            expected = {"features.csv", "samples.csv", "fixations.csv", "aoi_dwell.csv", "transitions.csv", "scanpaths.csv"}
+            expected = {"features.csv", "samples.csv", "fixations.csv", "aoi_dwell.csv", "transitions.csv",
+                        "scanpaths.csv", "quality.csv", "link_decisions.csv"}
             self.assertEqual({p.name for p in (output / "data_results").glob("*.csv")}, expected)
             self.assertEqual(list(output.glob("*.csv")), [])
             report = (output / "index.html").read_text(encoding="utf-8")
+            self.assertIn("Recording quality", report)
+            self.assertIn("Processing rules", report)
+            self.assertIn("no additional interval limit", report)
             for name in expected:
                 self.assertIn('href="data_results/' + name + '"', report)
             with (root / "processed/session/data_results/features.csv").open(newline="") as f:
                 self.assertEqual(next(csv.DictReader(f))["fixation_count"], "1")
+
+    def test_short_command_records_independent_thresholds(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.session(root)
+            with patch.object(analyse, "ROOT", root), contextlib.redirect_stdout(io.StringIO()):
+                analyse.main(["--no-open", "--no-plots", "--sample-max-gap-ms", "120",
+                              "--link-max-gap-ms", "100", "--min-duration-ms", "150"])
+            settings = json.loads((root / "processed/session/analysis.json").read_text())
+            self.assertEqual(settings["sample_max_gap_ms"], 120)
+            self.assertEqual(settings["link_max_gap_ms"], 100)
+            self.assertEqual(settings["min_duration_ms"], 150)
 
     def test_no_output_created_when_masks_are_unreviewed(self):
         with tempfile.TemporaryDirectory() as tmp:

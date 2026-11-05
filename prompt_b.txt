@@ -1,0 +1,7 @@
+Create a square 1:1 colour photograph of an adult [GENDER PRESENTATION], aged [AGE], described as [ETHNICITY], with [EXPRESSION]. They have [HAIR DESCRIPTION] and [ACCESSORIES]. The photograph is taken in [SETTING], using [LIGHTING CONDITION].
+
+Use a close, approximately front-facing portrait at eye level. The face should occupy most of the frame, with the forehead, eyes, nose, mouth and chin visible. Include some neck and a small amount of shoulders. Allow a slight head angle and modest variation in cropping. Include ordinary background details appropriate to the setting.
+
+Make this resemble an everyday candid photograph taken on a basic digital camera. Use ordinary photographic colour and contrast. Avoid glamour or studio-portrait styling, cinematic colour grading and excessive background blur.
+
+[OPTIONAL DIFFICULTY INSTRUCTION]

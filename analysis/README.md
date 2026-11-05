@@ -63,6 +63,8 @@ The results page links to these files:
 | data_results/fixations.csv | Exploratory fixations with location, duration, segment and AOI |
 | data_results/aoi_dwell.csv | Per-region observed dwell, fractions and first fixation latency |
 | data_results/scanpaths.csv | Linked fixation steps: endpoints, distances, directions and intervals |
+| data_results/link_decisions.csv | Every consecutive fixation pair: accepted/rejected, interval and reason |
+| data_results/quality.csv | Measured sample rates, interval statistics, off-image/invalid counts and coverage |
 | data_results/transitions.csv | AOI changes within a continuous observation segment |
 | analysis.json | Parameters and hashes of the source files and AOI masks |
 
@@ -80,7 +82,13 @@ ESC preserves the partial viewing interval. An incomplete final display-log line
 
 Observed dwell only counts time between usable samples in the same view with gaps of at most 100 ms. It does not fill missing gaze or extend the final sample. Fractions of total viewing time can therefore sum to less than 1. Heatmaps use this time in a 40 by 40 grid, with Gaussian display smoothing (sigma 1.2 grid cells) and transparent low-density edges. Colour scales are set separately for each trial, so colours are not absolute comparisons across trials. Smoothing affects the picture only; CSV dwell values, fixation detection and AOI calculations use the original samples. The grid and smoothing parameters are recorded in analysis.json.
 
-Exploratory I-DT defaults are a summed x/y range of 0.08 in normalised image units, a 100 ms minimum duration and a 100 ms maximum gap. Invalid samples, long gaps and transform changes split segments. Scanpath length and transition plots do not reconnect across these boundaries. Scanpath length uses normalised image distance, not visual angle; no automatic saccade classification is claimed.
+Exploratory I-DT defaults are a summed x/y range of 0.08 in normalised image units, a 100 ms minimum duration and a 100 ms maximum sample interval. Invalid/off-image samples, longer sample intervals and transform changes split segments. Scanpath length and transition plots do not reconnect across these boundaries. Scanpath length uses normalised image distance, not visual angle; no automatic saccade classification is claimed.
+
+Sample continuity and fixation-link intervals are independent settings. The default report now links consecutive fixations within the same uninterrupted segment, without an additional inter-fixation interval limit. Dashed arrows indicate an interval longer than the configured maximum sample interval (100 ms by default); solid arrows indicate shorter intervals. Both denote fixation order, not an observed saccade trajectory. No missing data are interpolated. This changes scanpath lengths and AOI-transition counts relative to earlier reports, but does not change fixation detection or observed dwell with the same sample settings.
+
+Use `python analyse.py --test --link-max-gap-ms 100` to reproduce the earlier link rule. Use `--sample-max-gap-ms`, `--min-duration-ms`, `--dispersion` and `--coordinate-source` for deliberate parameter comparisons. All settings and the link policy are recorded in `analysis.json` (schema version 2). Existing reports remain intact.
+
+The HTML report includes recording quality and processing-rule tables. `saved_sample_hz` is the number of unique received samples divided by viewing time; `valid_sample_hz` counts valid received samples over that same time. Valid/on-image fractions use received samples as the denominator and cannot reveal unreported samples on their own. `observed_fraction` counts only supported on-image time under the sample-gap rule. Interval statistics use positive timestamp differences. `sample_gap_total_ms` is the full duration of intervals exceeding the sample threshold, not an estimate of how much time the camera failed. These descriptive measures do not establish spatial accuracy or automatically exclude trials.
 
 Before participant collection, check known locations at 1x, 2x and 4x after zoom, pan and reset; inspect calibration, dropouts and coverage; review every AOI; and compare fixation thresholds against pilot accuracy. Zoom mapping does not correct calibration error.
 
@@ -92,7 +100,7 @@ python analyse.py --no-open
 python analyse.py --no-plots
 ~~~
 
-If matplotlib is unavailable, the short command reports this and still saves CSVs. The lower-level python -m analysis.process --help exposes coordinate-source and fixation-threshold settings for methodological comparisons. The default settings are used by analyse.py.
+If matplotlib is unavailable, the short command reports this and still saves CSVs. Both `python analyse.py --help` and `python -m analysis.process --help` expose coordinate-source and fixation-threshold settings for methodological comparisons. The lower-level `--max-gap-ms` remains an alias of `--sample-max-gap-ms`.
 
 Run regression tests with python -m unittest discover -s tests -v. The sandbox tests use Python 3.12, synthetic data and a mocked display. Live PsychoPy/webcam behaviour, model inference and matplotlib rendering remain unvalidated here because the intended Python 3.10 environment and those dependencies are unavailable.
 
@@ -100,9 +108,14 @@ Run regression tests with python -m unittest discover -s tests -v. The sandbox t
 
 Each analysis now exports `data_results/scanpaths.csv`: one row for each linked
 pair of fixations, including endpoints, AOIs, image distance, direction and time
-between fixations. Links stop at invalid tracking segments, display-transform
-changes and gaps beyond the configured maximum. No links are inferred across
-these boundaries.
+between fixations. Links stop at invalid/off-image tracking segments, display-transform
+changes and sample gaps beyond the configured sample maximum. An optional
+`--link-max-gap-ms` further limits the interval between fixations. No links are
+inferred across segment boundaries. `link_decisions.csv` records one decision
+per consecutive pair, with `within_segment`, `view_change`, `segment_break`,
+`overlapping_events` or `link_interval_exceeded` as the reason. A segment break
+can reflect invalid/off-image samples or a long sample interval; it is not a
+diagnosis of a hardware failure.
 
 `features.csv` additionally includes linked step count, segment count (including
 isolated fixations), mean/max step distance, total fixation duration, summed

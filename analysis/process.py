@@ -8,7 +8,8 @@ from pathlib import Path
 import statistics
 from .ingest import load_display, align_samples, write_csv, resolve_stimulus
 from .fixations import detect_fixations
-from .scanpaths import scanpath
+from .scanpaths import scanpath, link_decisions
+from .quality import recording_quality
 from .face_aois import AOIMap, sha256
 
 
@@ -24,8 +25,7 @@ def sample_durations(rows, max_gap_ms):
 
 
 def continuous(a, b, max_gap_ms):
-    return (a["segment"] == b["segment"] and
-            b["start_ms"] - a["end_ms"] <= max_gap_ms)
+    return bool(link_decisions([a, b], max_gap_ms)[0]["accepted"])
 
 
 HEATMAP_BINS = 40
@@ -48,10 +48,12 @@ def smooth_dwell(heat, sigma=HEATMAP_SIGMA):
     return result
 
 
-def plot_trial(stimulus, rows, fixations, out, name, max_gap_ms=100):
+def plot_trial(stimulus, rows, fixations, out, name, max_gap_ms=100,
+               decisions=None, quality=None, sample_max_gap_ms=100):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    import matplotlib.patheffects as effects
     from matplotlib.colors import Normalize
     from matplotlib.cm import ScalarMappable
     import numpy as np
@@ -60,8 +62,8 @@ def plot_trial(stimulus, rows, fixations, out, name, max_gap_ms=100):
         image = im.convert("RGB")
     w, h = image.size
     with plt.rc_context({"font.family": "DejaVu Sans", "font.size": 10,
-                         "text.color": "#18263b", "axes.titleweight": "bold"}):
-        fig, axes = plt.subplots(1, 2, figsize=(13, 7), facecolor="#f3f6fa")
+                         "text.color": "#242424", "axes.titleweight": "normal"}):
+        fig, axes = plt.subplots(1, 2, figsize=(13, 7), facecolor="white")
         fig.subplots_adjust(left=0.035, right=0.965, top=0.83, bottom=0.18, wspace=0.12)
         try:
             for ax in axes:
@@ -89,15 +91,21 @@ def plot_trial(stimulus, rows, fixations, out, name, max_gap_ms=100):
                 colourbar.ax.tick_params(labelsize=8, length=0)
                 right, left = axes[1].get_position(), axes[0].get_position()
                 axes[1].set_position([right.x0, left.y0, left.width, left.height])
-            for a, b in zip(fixations, fixations[1:]):
-                if continuous(a, b, max_gap_ms):
-                    axes[1].annotate("", xy=(b["image_x"], b["image_y"]),
+            decisions = link_decisions(fixations, max_gap_ms) if decisions is None else decisions
+            for a, b, decision in zip(fixations, fixations[1:], decisions):
+                if decision["accepted"]:
+                    arrow = axes[1].annotate("", xy=(b["image_x"], b["image_y"]),
                                      xytext=(a["image_x"], a["image_y"]),
-                                     arrowprops=dict(arrowstyle="-|>", color="#21c7e7",
-                                                     lw=1.7, alpha=0.85, shrinkA=8, shrinkB=8))
+                                     arrowprops=dict(arrowstyle="-|>", color="#d35400",
+                                                     lw=2.4, mutation_scale=16,
+                                                     linestyle="--" if decision["inter_fixation_ms"] > sample_max_gap_ms else "-",
+                                                     shrinkA=6, shrinkB=6,
+                                                     connectionstyle="arc3,rad=0.12"), zorder=2)
+                    arrow.arrow_patch.set_path_effects([
+                        effects.Stroke(linewidth=4.2, foreground="white"), effects.Normal()])
             if fixations:
                 axes[1].scatter([f["image_x"] for f in fixations], [f["image_y"] for f in fixations],
-                                s=[max(140, f["duration_ms"] * 0.6) for f in fixations],
+                                s=[65 + min(600, f["duration_ms"]) * 0.28 for f in fixations],
                                 c="#123650", edgecolors="white", linewidths=1.4, alpha=0.88, zorder=3)
                 for f in fixations:
                     axes[1].annotate(str(f["fixation"]), (f["image_x"], f["image_y"]),
@@ -111,12 +119,15 @@ def plot_trial(stimulus, rows, fixations, out, name, max_gap_ms=100):
             axes[0].set_title("Where you looked", loc="left", pad=14, fontsize=14)
             axes[1].set_title("Order of fixations", loc="left", pad=14, fontsize=14)
             fig.text(0.04, 0.94, name, fontsize=18, fontweight="bold")
+            quality_label = (f"   /   {quality['saved_sample_hz']:.1f} samples/s" if quality else "")
             fig.text(0.04, 0.895,
-                     f"{observed_seconds:.2f} s observed dwell   /   {len(fixations)} exploratory fixations",
+                     f"{observed_seconds:.2f} s observed dwell   /   {len(fixations)} exploratory fixations"
+                     f"   /   {sum(d['accepted'] for d in decisions)} links" + quality_label,
                      fontsize=10, color="#53667e")
             fig.text(0.04, 0.07,
                      "Heatmap: Gaussian display smoothing, 1.2 cells on a 40 x 40 grid; colour scale is per trial.\n"
-                     "Fixations: number = order; circle size increases with duration. Arrows stop at tracking gaps or view changes.",
+                     f"Arrows show fixation order, not measured saccades. Dashed: interval > {sample_max_gap_ms:g} ms. "
+                     "Tracking breaks and view changes stop paths.",
                      fontsize=9, color="#53667e", linespacing=1.6)
             fig.savefig(out, dpi=180, facecolor=fig.get_facecolor())
         finally:
@@ -124,7 +135,12 @@ def plot_trial(stimulus, rows, fixations, out, name, max_gap_ms=100):
 
 
 def process(base, output, aois=None, allow_unreviewed=False, coordinate_source="calibrated",
-            dispersion=0.08, min_duration_ms=100, max_gap_ms=100, plots=True):
+            dispersion=0.08, min_duration_ms=100, max_gap_ms=100, plots=True,
+            link_max_gap_ms=None):
+    if any(not math.isfinite(value) or value <= 0
+           for value in (dispersion, min_duration_ms, max_gap_ms)):
+        raise ValueError("Fixation and sample-gap parameters must be positive and finite")
+    link_decisions([], link_max_gap_ms)  # validate before writing any output
     base = str(base)
     output = Path(output)
     if output.exists() and any(output.iterdir()):
@@ -165,7 +181,7 @@ def process(base, output, aois=None, allow_unreviewed=False, coordinate_source="
     tables.mkdir()
     aoi_names = set(aoi_map.manifest["labels"].values()) if aois else {"unmapped"}
     features, all_fixations, dwell_rows, transitions = [], [], [], []
-    all_steps = []
+    all_steps, all_decisions, quality_rows = [], [], []
     for trigger, view in views.items():
         if trigger not in offsets:
             continue
@@ -183,15 +199,24 @@ def process(base, output, aois=None, allow_unreviewed=False, coordinate_source="
         for f in fixations:
             f["aoi"] = aoi_map.at(stimulus, f["image_x"], f["image_y"])
             all_fixations.append(dict(identity, **f))
-        path_summary, steps = scanpath(fixations, max_gap_ms)
+        decisions = link_decisions(fixations, link_max_gap_ms)
+        path_summary, steps = scanpath(fixations, link_max_gap_ms, decisions)
+        all_decisions.extend(dict(identity, **decision) for decision in decisions)
         all_steps.extend(dict(identity, **step) for step in steps)
         # Transitions only within continuous observation and an unchanged display transform.
-        for a, b in zip(fixations, fixations[1:]):
-            if continuous(a, b, max_gap_ms) and a["aoi"] != b["aoi"]:
+        for a, b, decision in zip(fixations, fixations[1:], decisions):
+            if decision["accepted"] and a["aoi"] != b["aoi"]:
                 transitions.append(dict(identity, from_aoi=a["aoi"], to_aoi=b["aoi"],
                                         at_ms=b["start_ms"], from_fixation=a["fixation"], to_fixation=b["fixation"]))
         view_ms = (offsets[trigger]["timestamp_ns"] - view["timestamp_ns"]) / 1e6
         observed = sum(dwell.values())
+        quality = recording_quality(rows, view_ms, max_gap_ms)
+        if rows and not fixations:
+            quality["quality_notes"] = "; ".join(filter(None, [quality["quality_notes"],
+                                                              "No fixations met the detection rules"]))
+        quality_rows.append(dict(identity, view_ms=view_ms, **quality,
+                                 observed_fraction=observed / view_ms if view_ms else 0,
+                                 **path_summary))
         for aoi, duration in dwell.items():
             matching = [f for f in fixations if f["aoi"] == aoi]
             dwell_rows.append(dict(identity, aoi=aoi, dwell_ms=duration,
@@ -199,9 +224,7 @@ def process(base, output, aois=None, allow_unreviewed=False, coordinate_source="
                                    fraction_view=duration / view_ms if view_ms else "",
                                    time_to_first_fixation_ms=matching[0]["start_ms"] if matching else ""))
         response = responses.get(trigger, {})
-        path_length = sum(math.hypot(b["image_u"] - a["image_u"], b["image_v"] - a["image_v"])
-                          for a, b in zip(fixations, fixations[1:])
-                          if continuous(a, b, max_gap_ms))
+        path_length = sum(step["distance_image_units"] for step in steps)
         aoi_names.update(dwell)
         features.append(dict(identity, condition=view["condition"],
                              **{k: response.get(k, "") for k in
@@ -219,11 +242,13 @@ def process(base, output, aois=None, allow_unreviewed=False, coordinate_source="
                              aoi_sequence=" > ".join(f["aoi"] for f in fixations),
                              max_zoom=max(e["zoom"] for e in events if e["kind"] == "present" and e["trigger"] == trigger)))
         features[-1].update(path_summary)
+        features[-1].update(quality)
         for aoi, duration in dwell.items():
             features[-1][aoi + "_dwell_ms"] = duration
             features[-1][aoi + "_dwell_fraction_observed"] = duration / observed if observed else ""
         if plots:
-            plot_trial(stimulus, rows, fixations, output / f"trial_{trigger}_qc.png", f"Trial {trigger}", max_gap_ms)
+            plot_trial(stimulus, rows, fixations, output / f"trial_{trigger}_qc.png", f"Trial {trigger}",
+                       link_max_gap_ms, decisions, quality, max_gap_ms)
     write_csv(tables / "samples.csv", samples, list(samples[0]) if samples else ["timestamp", "trigger", "usable", "image_x", "image_y", "aoi"])
     for feature in features:
         for aoi in sorted(aoi_names):
@@ -235,8 +260,15 @@ def process(base, output, aois=None, allow_unreviewed=False, coordinate_source="
     write_csv(tables / "transitions.csv", transitions, list(transitions[0]) if transitions else ["participant", "trigger", "from_aoi", "to_aoi", "at_ms"])
     write_csv(tables / "scanpaths.csv", all_steps, list(all_steps[0]) if all_steps else
               ["participant", "session", "trigger", "path_segment", "from_fixation", "to_fixation", "distance_image_units"])
-    provenance = dict(schema_version=1, source_session=base, coordinate_source=coordinate_source,
+    write_csv(tables / "link_decisions.csv", all_decisions, list(all_decisions[0]) if all_decisions else
+              ["participant", "trigger", "from_fixation", "to_fixation", "accepted", "reason", "inter_fixation_ms"])
+    write_csv(tables / "quality.csv", quality_rows, list(quality_rows[0]) if quality_rows else
+              ["participant", "trigger", "saved_sample_hz", "quality_notes"])
+    provenance = dict(schema_version=2, source_session=base, coordinate_source=coordinate_source,
                       dispersion=dispersion, min_duration_ms=min_duration_ms, max_gap_ms=max_gap_ms,
+                      sample_max_gap_ms=max_gap_ms, link_max_gap_ms=link_max_gap_ms,
+                      link_policy="within_segment" if link_max_gap_ms is None else "within_segment_with_interval_limit",
+                      fixation_space="normalised_original_image", interpolation="none",
                       aois=str(aois) if aois else None, allow_unreviewed=allow_unreviewed,
                       tables_directory="data_results",
                       heatmap_display=dict(bins=HEATMAP_BINS, gaussian_sigma_cells=HEATMAP_SIGMA, scale="per_trial"),
@@ -262,14 +294,17 @@ def main():
     p.add_argument("--coordinate-source", choices=("calibrated", "filtered"), default="calibrated")
     p.add_argument("--dispersion", type=float, default=0.08)
     p.add_argument("--min-duration-ms", type=float, default=100)
-    p.add_argument("--max-gap-ms", type=float, default=100)
+    p.add_argument("--sample-max-gap-ms", "--max-gap-ms", dest="max_gap_ms", type=float, default=100,
+                   help="maximum sample interval for fixation segments and observed dwell")
+    p.add_argument("--link-max-gap-ms", type=float,
+                   help="optional interval limit for links within uninterrupted segments; default: no extra limit")
     p.add_argument("--no-plots", action="store_true")
     args = p.parse_args()
     if min(args.dispersion, args.min_duration_ms, args.max_gap_ms) <= 0:
         p.error("fixation parameters must be positive")
     process(args.session_base, args.output, args.aois, args.allow_unreviewed,
             args.coordinate_source, args.dispersion, args.min_duration_ms,
-            args.max_gap_ms, not args.no_plots)
+            args.max_gap_ms, not args.no_plots, link_max_gap_ms=args.link_max_gap_ms)
 
 
 if __name__ == "__main__":

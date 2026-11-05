@@ -1,0 +1,8 @@
+# Install a CUDA-enabled PyTorch build for your GPU first:
+# https://pytorch.org/get-started/locally/
+diffusers
+transformers
+accelerate
+safetensors
+huggingface_hub
+Pillow

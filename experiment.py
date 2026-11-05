@@ -28,7 +28,7 @@ from viewing import view_image
 
 from errors import QuitExperiment, RecalibrateRequest, StimulusError
 from gaze import GazeRecorder
-from screens import (info_screen, participant_screen, run_iti, run_ready,
+from screens import (explanation_screen, info_screen, participant_screen, run_iti, run_ready,
                      wait_for_click)
 from trials import load_and_verify_trials
 from ui import Button, make_fixation, text
@@ -139,6 +139,9 @@ def run_trial(
 
     confidence = int(confidence)
 
+    # Stage 4: optional reasons, outside image viewing and existing response RTs.
+    explanation, rt_explanation = explanation_screen(win, mouse, response, counter)
+
     run_iti(win)
 
     return {
@@ -152,6 +155,8 @@ def run_trial(
         "rt_classification": round(rt_class, 4),
         "confidence": confidence,
         "rt_confidence": round(rt_conf, 4),
+        "decision_reason": explanation,
+        "rt_decision_reason": round(rt_explanation, 4),
         "view_time": round((offset_ns - onset_ns) / 1e9, 4),
         "onset_ns": onset_ns,
         "offset_ns": offset_ns,

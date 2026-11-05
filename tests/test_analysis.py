@@ -145,6 +145,14 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(rows[1]["interrupted"], 1)
             self.assertTrue((d / "processed" / "data_results" / "samples.csv").exists())
             self.assertTrue((d / "processed" / "analysis.json").exists())
+            self.assertEqual(rows[0]["saved_sample_hz"], 20)
+            self.assertEqual(rows[1]["saved_sample_hz"], 0)
+            self.assertIn("No gaze samples", rows[1]["quality_notes"])
+            settings = json.loads((d / "processed" / "analysis.json").read_text())
+            self.assertIsNone(settings["link_max_gap_ms"])
+            self.assertEqual(settings["sample_max_gap_ms"], 100)
+            self.assertTrue((d / "processed/data_results/link_decisions.csv").is_file())
+            self.assertTrue((d / "processed/data_results/quality.csv").is_file())
             with self.assertRaises(FileExistsError):
                 process(base, d / "processed", plots=False)
 
