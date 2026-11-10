@@ -5,7 +5,7 @@ WIN_SIZE = (1920, 1080)   # native resolution of the experiment monitor
 FULLSCREEN = True
 SCREEN = 0          # which monitor PsychoPy uses (0 = primary)
 SHOW_GAZE = False   # demo: draw the live gaze point on screen
-CAMERA_INDEX = 1   # which webcam GazeFollower opens
+CAMERA_INDEX = 0   # which webcam GazeFollower opens
 
 # Gaze model. GAZE_MODEL is a filename under GazeFollower's
 # res/model_weights/ folder (e.g. "base_32M.mnn"), or an absolute/relative
@@ -17,7 +17,7 @@ GAZE_MODEL = "base_32M.mnn"
 # bright; camera controls vary by webcam and driver. More negative is darker.
 # Automatic mode ignores CAMERA_EXPOSURE.
 LOCK_CAMERA_EXPOSURE = True
-CAMERA_EXPOSURE = -5.5
+CAMERA_EXPOSURE = -4.5
 CALIBRATION_POINTS = 13  # gaze calibration pattern: 5, 9, or 13 points
 # Gaze smoothing. ENABLE_FACE_FILTER smooths the face/eye landmarks before
 # they reach the gaze model (reduces jitter at the source). GAZE_FILTER picks
@@ -41,7 +41,7 @@ BTN_LINE = "#CCCCCC"   # Button borders
 # Timing (seconds)
 FIXATION_DURATION = 0.7
 ITI_DURATION = 0.5
-PRACTICE_TRIALS = 1
+PRACTICE_TRIALS = 0  # Keep all 10 real and 10 generated images in the test.
 PRACTICE_CSV = "practice.csv"  # optional; falls back to the first trials
 
 # Eye-tracker readiness gate (the "ready" cross).

@@ -30,7 +30,8 @@ class LocalGenerationTests(unittest.TestCase):
         self.addCleanup(FakeEngine.calls.clear)
 
     def run_model(self, model, count=2, limit=None, dry=False):
-        args = ["--model", model, "--count", str(count), "--out", str(self.out)]
+        args = ["--model", model, "--count", str(count), "--out", str(self.out),
+                "--seed", "20261105"]
         if limit is not None:
             args += ["--limit", str(limit)]
         if dry:

@@ -139,6 +139,8 @@ total in one step. The log records those steps so subsequent runs can resume.
 
 Edit `prompt_a.txt` and `prompt_b.txt` at the project root. The characteristic
 lists are near the top of `generate_images.py`.
+See [prompt_options.txt](../prompt_options.txt) for every current bracket option,
+including the allowed setting/lighting combinations and the blank difficulty instruction.
 
 Optional arguments:
 
@@ -146,7 +148,7 @@ Optional arguments:
 | --- | --- | --- |
 | `--count` | `20` | Target total in the folder; increase to add pairs; must be even |
 | `--limit` | No limit | Maximum new images this run |
-| `--seed` | `20261105` | Reproduce the characteristic selections |
+| `--seed` | Random for new folders; saved seed on resume | Set explicitly to reproduce characteristic selections |
 | `--model` | `gpt-image-2.6-sunburst` | Image model |
 | `--quality` | `medium` | Fixed quality for both groups |
 | `--out` | `stimuli/generated_openai` | Output folder |

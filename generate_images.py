@@ -123,7 +123,8 @@ def main(argv=None):
     parser.add_argument("--count", type=int, default=20,
                         help="Target total images in the folder; increase to add pairs (default: 20)")
     parser.add_argument("--limit", type=int, help="Maximum new images this run; use 4 for the pilot")
-    parser.add_argument("--seed", type=int, default=20261105)
+    parser.add_argument("--seed", type=int,
+                        help="Prompt seed (default: random for a new folder; reuse saved seed on resume)")
     parser.add_argument("--model", default="gpt-image-2.6-sunburst",
                         help="OpenAI model, sd3.5-large, stylegan2, or stylegan3")
     parser.add_argument("--quality", choices=["low", "medium", "high", "xhigh", "max"], default="medium")
@@ -136,6 +137,15 @@ def main(argv=None):
     if args.count < 2 or args.count % 2 or (args.limit is not None and args.limit < 1):
         parser.error("--count must be even and at least 2; --limit must be positive")
     try:
+        if args.seed is None:
+            folder = args.out
+            if folder is None:
+                folder = (ROOT / 'stimuli' / args.model.replace('.', '_')
+                          if args.model in ('sd3.5-large', 'stylegan2', 'stylegan3')
+                          else ROOT / 'stimuli/generated_openai')
+            saved_plan = folder / 'prompts.json'
+            args.seed = (json.loads(saved_plan.read_text(encoding='utf-8'))['settings']['seed']
+                         if saved_plan.exists() else random.SystemRandom().randrange(2**31))
         if args.model in ("sd3.5-large", "stylegan2", "stylegan3"):
             from local_generation import run_local
             if args.out is None:

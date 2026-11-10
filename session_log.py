@@ -4,6 +4,8 @@ import importlib.metadata
 import json
 from pathlib import Path
 import platform
+import queue
+import threading
 import time
 
 
@@ -32,6 +34,33 @@ class SessionLog:
         self.events = open(base_name + "_display.jsonl", "x", encoding="utf-8", buffering=1)
         self.window_size = tuple(map(int, win_size))
         self.tracker_size = tuple(map(int, tracker_size))
+        self._pending = queue.SimpleQueue()
+        self._write_error = None
+        self._writer = threading.Thread(target=self._write_events, name="display-log", daemon=True)
+        self._writer.start()
+
+    def _write_events(self):
+        while True:
+            row = self._pending.get()
+            if row is None:
+                return
+            try:
+                if isinstance(row, threading.Event):
+                    self.events.flush()
+                elif self._write_error is None:
+                    self.events.write(json.dumps(row) + "\n")
+            except Exception as error:
+                self._write_error = error
+            finally:
+                if isinstance(row, threading.Event):
+                    row.set()
+
+    def flush(self):
+        barrier = threading.Event()
+        self._pending.put(barrier)
+        barrier.wait()
+        if self._write_error is not None:
+            raise RuntimeError("Display log write failed") from self._write_error
 
     def save(self):
         temp = self.path.with_suffix(".json.tmp")
@@ -42,14 +71,19 @@ class SessionLog:
         row = dict(frame, kind="present",
                    window_width=self.window_size[0], window_height=self.window_size[1],
                    tracker_width=self.tracker_size[0], tracker_height=self.tracker_size[1])
-        self.events.write(json.dumps(row) + "\n")
+        self._pending.put(row)
 
     def end_view(self, trigger, interrupted=False, timestamp_ns=None):
-        self.events.write(json.dumps(dict(kind="offset", timestamp_ns=timestamp_ns or time.time_ns(),
-                                         trigger=trigger, interrupted=interrupted)) + "\n")
+        self._pending.put(dict(kind="offset", timestamp_ns=timestamp_ns or time.time_ns(),
+                               trigger=trigger, interrupted=interrupted))
 
     def finish(self, status):
-        self.events.close()
+        try:
+            self.flush()
+        finally:
+            self._pending.put(None)
+            self._writer.join()
+            self.events.close()
         self.metadata.update(status=status, ended_ns=time.time_ns())
         self.save()
 
@@ -58,6 +92,8 @@ def export_image_gaze(base_name):
     """Write a convenient, SDK-independent image-coordinate CSV at shutdown."""
     from analysis.ingest import align_samples, load_display, write_csv
     events = load_display(base_name + "_display.jsonl")
-    rows = list(align_samples(base_name + "_gaze_raw.csv", events))
-    write_csv(base_name + "_gaze_image.csv", rows,
-              list(rows[0]) if rows else ["timestamp", "trigger", "image_x", "image_y", "usable"])
+    from itertools import chain
+    rows = iter(align_samples(base_name + "_gaze_raw.csv", events))
+    first = next(rows, None)
+    write_csv(base_name + "_gaze_image.csv", chain([first], rows) if first else (),
+              list(first) if first else ["timestamp", "trigger", "image_x", "image_y", "usable"])

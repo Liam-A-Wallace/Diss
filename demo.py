@@ -3,7 +3,6 @@ import argparse
 import csv
 from pathlib import Path
 import os
-import sys
 import shutil
 
 ROOT = Path(__file__).resolve().parent
@@ -43,22 +42,18 @@ def prepare():
     return target
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--prepare', action='store_true', help='prepare list without opening camera')
     parser.add_argument('--gaze-dot', action='store_true', help='show live gaze dot (can influence viewing)')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     os.chdir(ROOT)
     target = prepare()
     if args.prepare:
         return
-    import config
-    config.TRIALS_CSV = str(target)
-    config.PRACTICE_TRIALS = 0
-    config.BREAK_AT_FRACTION = None
-    sys.argv = ['experiment.py', '--test'] + (['--demo'] if args.gaze_dot else [])
     import experiment
-    experiment.main()
+    experiment.main(['--test', '--trials', str(target), '--practice-trials', '0',
+                     '--no-break'] + (['--demo'] if args.gaze_dot else []))
 
 
 if __name__ == '__main__':

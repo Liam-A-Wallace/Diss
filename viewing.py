@@ -91,4 +91,5 @@ def view_image(win, mouse, image, stimulus, counter, hint, gaze, session,
             win.flip()
             gaze.record_window(trial_index, trigger, practice, condition, stimulus,
                                stamps["onset"], stamps["offset"])
+            session.flush()
     return stamps, win.nDroppedFrames - dropped_before

@@ -17,12 +17,21 @@ class ExposureTests(unittest.TestCase):
         class Camera:
             def __init__(self, *args):
                 self._cap = capture
+                self.img_width, self.img_height, self.cam_fps = 640, 480, 30
 
             def open(self):
+                self._create_capture_thread()
+
+            def _create_capture_thread(self):
+                pass
+
+            def close(self):
                 pass
 
         fake_cv2 = types.SimpleNamespace(CAP_PROP_BACKEND=42, CAP_PROP_AUTO_EXPOSURE=21,
-                                        CAP_PROP_EXPOSURE=15, CAP_V4L2=200)
+                                        CAP_PROP_EXPOSURE=15, CAP_V4L2=200,
+                                        CAP_PROP_FRAME_WIDTH=3, CAP_PROP_FRAME_HEIGHT=4,
+                                        CAP_PROP_FPS=5, CAP_PROP_BUFFERSIZE=38)
         fake_log = types.SimpleNamespace(i=lambda message: None, w=lambda message: None)
         spec = importlib.util.spec_from_file_location("exposure_under_test",
                                                      Path(__file__).parents[1] / "gazefollower_patch.py")
@@ -40,12 +49,15 @@ class ExposureTests(unittest.TestCase):
     def test_auto_mode_restored_without_manual_exposure(self):
         for backend, expected in ((1400, 1), (200, 0.75)):
             with self.subTest(backend=backend):
-                self.assertEqual(self.open_camera(False, backend), [(21, expected)])
+                self.assertEqual(self.open_camera(False, backend),
+                                 [(3, 640), (4, 480), (5, 30), (38, 1), (21, expected)])
 
     def test_manual_mode_only_when_requested(self):
         for backend, expected in ((1400, 0), (200, 0.25)):
             with self.subTest(backend=backend):
-                self.assertEqual(self.open_camera(True, backend), [(21, expected), (15, -6)])
+                self.assertEqual(self.open_camera(True, backend),
+                                 [(3, 640), (4, 480), (5, 30), (38, 1),
+                                  (21, expected), (15, -6)])
 
     def test_closed_camera_is_not_configured(self):
         self.assertEqual(self.open_camera(False, opened=False), [])

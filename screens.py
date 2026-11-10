@@ -8,7 +8,7 @@ from config import (ACCENT, BTN_FILL, BTN_HOVER, BTN_LINE, DRIFT_WARN_PX,
                     FONT, GAZE_READY_WINDOW, ITI_DURATION, MUTED, PANEL, PANEL_LINE,
                     TEXT)
 from errors import QuitExperiment, RecalibrateRequest
-from ui import Button, rounded_rect, text
+from ui import Button, fit_text, rounded_rect, text
 
 import overlay
 
@@ -32,11 +32,11 @@ def info_screen(win, title, body=None, steps=None,
         card,
         text(
             win, "SEEING THE FAKE", (0, 0.355),
-            height=0.019, color=MUTED, bold=True
+            height=0.026, color=TEXT, bold=True
         ),
         text(
             win, title, (0, 0.27),
-            height=0.06, bold=True
+            height=0.06, bold=True, wrap=1.12, max_height=0.075
         ),
         visual.Rect(
             win, size=(0.10, 0.005), pos=(0, 0.21),
@@ -45,19 +45,21 @@ def info_screen(win, title, body=None, steps=None,
     ]
 
     if steps:
-        start_y = 0.12
-        spacing = 0.13
+        start_y = 0.15
 
         if body:
             stims.append(
                 text(
                     win, body, (0, 0.14),
-                    height=0.027, wrap=1.0,
+                    height=0.027, wrap=1.08, max_height=0.09,
                     color=MUTED, anchor_v="top"
                 )
             )
-            start_y = 0.02
-            spacing = 0.115
+            start_y = 0.025
+
+        # Each step owns a separate region above the footer; descriptions can
+        # wrap without running into the following heading.
+        spacing = (start_y + 0.32) / len(steps)
 
         for i, (heading, desc) in enumerate(steps):
             y = start_y - i * spacing
@@ -65,13 +67,15 @@ def info_screen(win, title, body=None, steps=None,
             stims.append(
                 text(
                     win, f"{i + 1}. {heading}", (0, y),
-                    height=0.034, bold=True
+                    height=0.032, bold=True, anchor_v="top",
+                    wrap=1.08, max_height=0.04
                 )
             )
             stims.append(
                 text(
-                    win, desc, (0, y - 0.032),
-                    height=0.025, color=MUTED, wrap=1.0
+                    win, desc, (0, y - 0.045),
+                    height=0.025, color=MUTED, wrap=1.08,
+                    anchor_v="top", max_height=spacing - 0.06
                 )
             )
 
@@ -79,7 +83,7 @@ def info_screen(win, title, body=None, steps=None,
         stims.append(
             text(
                 win, body, (0, 0.08),
-                height=0.038, wrap=1.0,
+                height=0.038, wrap=1.08, max_height=0.40,
                 color=TEXT, anchor_v="top"
             )
         )
@@ -87,7 +91,7 @@ def info_screen(win, title, body=None, steps=None,
     stims.append(
         text(
             win, footer, (0, -0.375),
-            height=0.024, color=MUTED
+            height=0.024, color=MUTED, wrap=1.12, max_height=0.035
         )
     )
 
@@ -120,16 +124,17 @@ def participant_screen(win, participant="001", session="001"):
     active = 0
 
     field_width, field_height = 0.86, 0.08
-    field_y_positions = [0.08, -0.10]
-    label_offset_y = 0.058
+    field_y_positions = [0.025, -0.14]
+    label_offset_y = 0.060
 
     # static stimuli, created once so the form doesn't rebuild them every frame
-    card = rounded_rect(win, (1.18, 0.74), (0, 0), radius=0.035, fill=PANEL, line=PANEL_LINE)
+    card = rounded_rect(win, (1.24, 0.86), (0, 0), radius=0.035, fill=PANEL, line=PANEL_LINE)
     header = text(win, "SEEING THE FAKE", (0, 0.285), height=0.019, color=MUTED, bold=True)
-    title = text(win, "Participant details", (0, 0.22), height=0.05, bold=True)
+    title = text(win, "Participant details", (0, 0.205), height=0.05, bold=True,
+                 wrap=1.10, max_height=0.065)
     hint = text(
         win, "TAB switch field   •   ENTER or SPACE continue   •   ESC quit",
-        (0, -0.325), height=0.020, color=MUTED
+        (0, -0.38), height=0.020, color=MUTED, wrap=1.10, max_height=0.035
     )
 
     label_stims = []
@@ -149,7 +154,7 @@ def participant_screen(win, participant="001", session="001"):
         value_stims.append(
             text(win, " ", (0.0, y_box + 0.004),
                  height=0.038, color=TEXT, bold=True,
-                 anchor_h="center", anchor_v="center")
+                 anchor_h="center", anchor_v="center", wrap=100)
         )
         # invisible rect, only used to hit-test which field gets clicked
         box_shapes.append(
@@ -158,7 +163,7 @@ def participant_screen(win, participant="001", session="001"):
         )
 
     btn_continue = Button(
-        win, "CONTINUE", (0.0, -0.25), (0.32, 0.08), value="continue", text_height=0.035
+        win, "CONTINUE", (0.0, -0.285), (0.32, 0.08), value="continue", text_height=0.035
     )
 
     mouse = event.Mouse(win=win)
@@ -171,7 +176,11 @@ def participant_screen(win, participant="001", session="001"):
         title.draw()
 
         for i in range(len(labels)):
-            value_stims[i].text = "".join(fields[i]) or " "
+            value = "".join(fields[i]) or " "
+            if value_stims[i].text != value:
+                value_stims[i].text = value
+                value_stims[i].height = 0.038
+                fit_text(value_stims[i], field_width - 0.05, field_height - 0.02)
             is_active = (i == active)
             is_hovered = box_shapes[i].contains(mouse_pos)
             field_boxes[i].lineColor = ACCENT if is_active else (BTN_HOVER if is_hovered else BTN_LINE)
@@ -274,9 +283,9 @@ def explanation_screen(win, mouse, response, counter):
     """Collect an optional explanation after the decision and confidence rating."""
     label = "AI-generated" if response == "fake" else "real"
     prompt = text(win, f"What led you to decide this image was {label}?",
-                  (0, 0.31), height=0.039, bold=True, wrap=1.35)
+                  (0, 0.31), height=0.039, bold=True, wrap=1.35, max_height=0.085)
     hint = text(win, "Optional: write any reasons, or leave blank. Click CONTINUE when finished.",
-                (0, 0.22), height=0.025, color=MUTED, wrap=1.3)
+                (0, 0.215), height=0.025, color=MUTED, wrap=1.3, max_height=0.055)
     box = visual.TextBox2(
         win, text="", font=FONT, pos=(0, -0.015), units="height",
         size=(1.30, 0.34), letterHeight=0.03, color=TEXT,
@@ -327,6 +336,7 @@ def run_ready(win, fixation, gaze):
         (0, -0.42),
         height=0.024,
         color=MUTED,
+        max_height=0.055,
     )
     status = text(win, " ", (0, -0.33), height=0.026, color=MUTED, bold=True)
     # Red: waiting for tracking; amber: off-centre; green: near the cross.
@@ -345,6 +355,7 @@ def run_ready(win, fixation, gaze):
     floor = core.Clock()
     drift_warned = False
     drift = None
+    last_status = None
 
     while True:
         sample = gaze.poll()
@@ -359,6 +370,11 @@ def run_ready(win, fixation, gaze):
                            "or ENTER to continue anyway")
         else:
             status.text = "Blue dot = your gaze. Look at the centre cross."
+
+        if status.text != last_status:
+            status.height = 0.026
+            fit_text(status, 1.0, 0.08)
+            last_status = status.text
 
         ready = (floor.getTime() >= FIXATION_DURATION
                  and gaze.recent_gaze(GAZE_READY_WINDOW))

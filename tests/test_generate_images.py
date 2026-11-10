@@ -21,7 +21,7 @@ class GenerateImagesTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.out = Path(self.temporary.name)
-        self.args = ["--count", "2", "--out", str(self.out)]
+        self.args = ["--count", "2", "--out", str(self.out), "--seed", "20261105"]
         self.client = MagicMock()
         self.response = types.SimpleNamespace(data=[types.SimpleNamespace(
             b64_json=base64.b64encode(b"\x89PNG\r\n\x1a\ntest").decode())])
@@ -42,6 +42,16 @@ class GenerateImagesTests(unittest.TestCase):
 
     def read_log(self):
         return json.loads((self.out / "prompts.json").read_text(encoding="utf-8"))
+
+    def test_random_default_seed_is_saved_and_reused(self):
+        self.args = self.args[:-2]
+        with patch('generate_images.random.SystemRandom') as rng:
+            rng.return_value.randrange.return_value = 12345
+            self.assertEqual(self.run_generator(), 0)
+            self.assertEqual(self.read_log()['settings']['seed'], 12345)
+            self.assertEqual(self.run_generator(), 0)
+            rng.return_value.randrange.assert_called_once()
+        self.assertEqual(self.client.images.generate.call_count, 2)
 
     def test_quota_rejection_can_resume_without_repeating_saved_images(self):
         response = types.SimpleNamespace(data=[types.SimpleNamespace(

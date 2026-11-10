@@ -1,0 +1,35 @@
+Using prompts A and B
+
+Model: OpenAI GPT Image 2.6 Sunburst (gpt-image-2.6-sunburst).
+Settings: medium quality, 1024 x 1024 pixels, PNG output.
+
+generate_images.py reads prompt_a.txt and prompt_b.txt. For each pair, it
+fills the brackets using the options listed in prompt_options.txt. Both
+prompts receive the same age, gender presentation, ethnicity, expression,
+hair, accessories, setting and lighting. The difficulty field is left blank.
+
+Prompt A adds instructions about realistic facial features and skin detail.
+Prompt B uses the same photographic style without those extra instructions.
+Each completed prompt is sent separately to the model, A then B, with one
+image requested per prompt. The pair shares a description, but the images
+are not guaranteed to show the same person.
+
+Requires a working .venv-imagegen Python environment with the openai package.
+Open PowerShell in the project folder. Set your API key for that terminal:
+
+$env:OPENAI_API_KEY = "your-api-key"
+
+Generate one pair (two images):
+
+.venv-imagegen\Scripts\python.exe generate_images.py --count 2 --model gpt-image-2.6-sunburst --quality medium --out stimuli/prompt_ab
+
+To preview the completed prompts without generating images, add --dry-run
+to the command. To generate 20 images (10 pairs), change --count 2 to
+--count 20. Rerunning skips images already saved in that folder.
+
+Images are saved in stimuli/prompt_ab as pair_001_A.png, pair_001_B.png,
+and so on. prompts.json records the full prompts, model, settings and status.
+The saved seed controls the choice of bracket values, not the image pixels.
+Use a new output folder if you change the templates or model settings.
+
+Model reference: https://developers.openai.com/api/docs/models/gpt-image-2.6-sunburst

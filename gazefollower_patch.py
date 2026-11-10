@@ -32,7 +32,7 @@ def apply():
         return
 
     _upstream_init = _WebCamCamera.__init__
-    _upstream_open = _WebCamCamera.open
+    _upstream_create_thread = _WebCamCamera._create_capture_thread
 
     def __init__(self, webcam_id=0, img_height=480, img_width=640, cam_fps=30,
                  lock_exposure=None, exposure=None):
@@ -44,11 +44,17 @@ def apply():
         self.exposure = exposure
         _upstream_init(self, webcam_id, img_height, img_width, cam_fps)
 
-    def open(self):
-        _upstream_open(self)
+    def configure_capture(self):
+        # Upstream calls this hook after opening and before starting capture.
         if not self._cap.isOpened():
-            return
+            return _upstream_create_thread(self)
         import cv2
+
+        for prop, value in ((cv2.CAP_PROP_FRAME_WIDTH, self.img_width),
+                            (cv2.CAP_PROP_FRAME_HEIGHT, self.img_height),
+                            (cv2.CAP_PROP_FPS, self.cam_fps),
+                            (cv2.CAP_PROP_BUFFERSIZE, 1)):
+            self._cap.set(prop, value)
 
         # Windows backends use 0/1; V4L2 uses quarter-scale menu values.
         backend = int(self._cap.get(cv2.CAP_PROP_BACKEND))
@@ -69,7 +75,15 @@ def apply():
             if not enabled:
                 Log.w("The webcam did not accept automatic exposure. "
                       "Check its exposure setting in the camera controls.")
+        Log.i(f"Camera negotiated: {self._cap.get(cv2.CAP_PROP_FRAME_WIDTH)} x "
+              f"{self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT)} at "
+              f"{self._cap.get(cv2.CAP_PROP_FPS)} fps")
+        return _upstream_create_thread(self)
 
     _WebCamCamera.__init__ = __init__
-    _WebCamCamera.open = open
+    _WebCamCamera._create_capture_thread = configure_capture
+    from camera_capture import capture_latest, stop_camera
+    _WebCamCamera.close = stop_camera
+    _WebCamCamera.release = stop_camera
+    _WebCamCamera.capture = capture_latest
     setattr(_WebCamCamera, _PATCH_FLAG, True)

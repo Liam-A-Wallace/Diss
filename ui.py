@@ -33,6 +33,7 @@ def rounded_rect(win, size, pos, radius=0.02, fill=PANEL, line=None,
     return visual.ShapeStim(
         win,
         vertices=rounded_vertices(size[0], size[1], radius),
+        units="height",
         pos=pos,
         fillColor=fill,
         lineColor=line if line else fill,
@@ -42,10 +43,11 @@ def rounded_rect(win, size, pos, radius=0.02, fill=PANEL, line=None,
 
 
 def text(win, txt, pos, height=0.04, color=TEXT, bold=False, wrap=1.0,
-         anchor_h="center", anchor_v="center"):
-    return visual.TextStim(
+         anchor_h="center", anchor_v="center", max_height=None):
+    stim = visual.TextStim(
         win,
         text=txt,
+        units="height",
         pos=pos,
         height=height,
         color=color,
@@ -57,6 +59,26 @@ def text(win, txt, pos, height=0.04, color=TEXT, bold=False, wrap=1.0,
         # anchor pins the box to pos, alignText lines the text up inside it
         alignText=anchor_h,
     )
+    if max_height is not None:
+        fit_text(stim, wrap, max_height)
+    return stim
+
+
+def fit_text(stim, width, height):
+    """Fit rendered text inside a height-unit box, including font line spacing."""
+    # TextStim.boundingBox is in pixels, even when the stimulus uses height units.
+    pixels = float(stim.win.size[1])
+    for _ in range(30):
+        # Changing height invalidates PsychoPy's glyph layout, but boundingBox
+        # still returns the old dimensions until that layout is rebuilt.
+        # setText(None) refreshes the existing text without drawing a frame.
+        stim.setText(None, log=False)
+        actual_w, actual_h = stim.boundingBox
+        scale = min(1.0, width * pixels / max(actual_w, 1),
+                    height * pixels / max(actual_h, 1))
+        if scale >= 1.0:
+            break
+        stim.height *= min(scale * 0.96, 0.95)
 
 
 class Button:
@@ -67,7 +89,8 @@ class Button:
             fill=BTN_FILL, line=BTN_LINE
         )
         self.label = text(
-            win, label, pos, height=text_height, bold=True
+            win, label, pos, height=text_height, bold=True,
+            wrap=size[0] - 0.04, max_height=size[1] - 0.02
         )
 
     def contains(self, mouse_pos):

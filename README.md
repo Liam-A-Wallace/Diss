@@ -49,6 +49,11 @@ curated photos and does not replace that list.
 Raw image corpora and GazeFollower live in the sibling `../Dataset/` and
 `../GazeFollower/` folders.
 
+`experiment.py` accepts `--trials PATH`, `--practice-trials N` and `--no-break`;
+the demo passes these options explicitly. Add `--export-image-gaze` to produce
+the convenience `_gaze_image.csv` at shutdown. Normal analysis maps the preserved
+raw gaze and display logs without needing that extra export.
+
 ## Guides
 
 - [Five-photo demo and landmark preview](docs/DEMO.md)

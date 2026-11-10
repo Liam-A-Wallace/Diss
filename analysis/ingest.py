@@ -91,8 +91,9 @@ def align_samples(raw_path, events, coordinate_source="calibrated"):
 
 
 def write_csv(path, rows, fields=None):
-    rows = list(rows)
-    fields = fields or list(dict.fromkeys(k for r in rows for k in r))
+    if fields is None:
+        rows = list(rows)
+        fields = list(dict.fromkeys(k for r in rows for k in r))
     with open(path, "w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()

@@ -1,0 +1,81 @@
+Options from generate_images.py. Same values for A and B.
+
+[GENDER PRESENTATION]
+- person with a masculine presentation
+- person with a feminine presentation
+
+[AGE]
+Whole number within one of these bands (inclusive):
+- 18-29
+- 30-44
+- 45-59
+- 60-80
+
+[ETHNICITY]
+- White
+- East Asian
+- South Asian
+- Black
+- Latin American
+- Middle Eastern
+- mixed ethnicity
+
+[EXPRESSION]
+- a neutral expression
+- a relaxed expression
+- a closed-mouth smile
+- a smile showing teeth
+
+[HAIR DESCRIPTION]
+- short straight black hair
+- short wavy brown hair
+- short tightly curled black hair
+- shoulder-length curly brown hair
+- long straight brown hair tucked behind the ears
+- shoulder-length wavy blonde hair
+- short auburn hair
+- neat black braids pulled back
+- long black hair tied back loosely
+
+[ACCESSORIES]
+- no visible accessories
+- clear-lens glasses that leave the eyes visible
+- small stud earrings
+- a casual hat worn back so the forehead and eyes remain visible
+
+"no visible accessories" appears 7 times in the script's list; each other
+option appears once.
+
+[SETTING] AND [LIGHTING CONDITION]
+Each setting's allowed lighting options:
+
+Setting: a garden
+- overcast daylight
+- direct sunlight
+
+Setting: a residential street
+- overcast daylight
+- direct sunlight
+
+Setting: a living room
+- indoor ambient light
+- indoor camera flash
+
+Setting: an indoor gathering
+- indoor ambient light
+- indoor camera flash
+
+Setting: a café
+- indoor ambient light
+- indoor camera flash
+
+Setting: an office
+- indoor ambient light
+- indoor camera flash
+
+Setting: an outdoor area beside a brick wall
+- overcast daylight
+- direct sunlight
+
+[OPTIONAL DIFFICULTY INSTRUCTION]
+"" (leave blank)

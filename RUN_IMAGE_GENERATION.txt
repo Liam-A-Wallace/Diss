@@ -1,0 +1,26 @@
+Running the A/B image generator (Windows PowerShell)
+
+Keep generate_images.py, prompt_a.txt and prompt_b.txt together in one folder.
+Open PowerShell in that folder and run:
+
+python -m venv .venv-imagegen
+.venv-imagegen\Scripts\python.exe -m pip install openai
+
+Check the prompts first (no images are generated):
+
+.venv-imagegen\Scripts\python.exe generate_images.py --count 2 --dry-run
+
+Set your own OpenAI API key in the same PowerShell window:
+
+$env:OPENAI_API_KEY = "your-api-key"
+
+Generate one A/B pair:
+
+.venv-imagegen\Scripts\python.exe generate_images.py --count 2 --model gpt-image-2.6-sunburst --quality medium --out stimuli/prompt_ab
+
+To make 20 images (10 pairs), run the same command with --count 20. The count
+is the total for that folder, so the existing pair is kept. Rerun the command
+if a batch stops partway through.
+
+
+

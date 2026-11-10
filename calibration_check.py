@@ -24,11 +24,12 @@ def check_image(win, gaze, stimulus, log_path=None):
     scale = min(win.size[0] * 0.75 / width, win.size[1] * 0.70 / height)
     photo = visual.ImageStim(win, image=stimulus, units="pix", size=(width * scale, height * scale))
     dot = visual.Circle(win, units="pix", radius=10, fillColor="#00e5ff", lineColor="black", lineWidth=2)
-    title = text(win, "Check your eye tracking", (0, 0.43), height=0.038, bold=True)
+    title = text(win, "Check your eye tracking", (0, 0.43), height=0.038, bold=True,
+                 wrap=1.6, max_height=0.04)
     instruction = text(win, "Look at the eyes, nose and mouth. Does the blue dot follow where you look?",
-                       (0, 0.38), height=0.023, wrap=1.6)
+                       (0, 0.38), height=0.023, wrap=1.6, max_height=0.035)
     hint = text(win, "ENTER / SPACE: satisfactory   |   R: calibrate again   |   ESC: quit",
-                (0, -0.44), height=0.022, wrap=1.6)
+                (0, -0.44), height=0.022, wrap=1.6, max_height=0.035)
     status = text(win, "Waiting for fresh gaze...", (0, -0.39), height=0.022)
     event.clearEvents()
     started = time.time_ns()

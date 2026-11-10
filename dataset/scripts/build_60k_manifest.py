@@ -68,14 +68,13 @@ def _dirs_under(base: Path, depth: int) -> list[Path]:
     return out
 
 
-def find_dataset_root() -> Path | None:
+def find_dataset_root(preferred_roots=()) -> Path | None:
     """Find the folder that directly contains ``Real/`` and ``Fake/``.
 
-    Checks the usual ``Deepfake-vs-Real-60K/deepfake-vs-real-60k`` layout first,
-    then falls back to a bounded search under the Dataset folder and repo root,
-    so the script works wherever the image folders end up.
+    Search caller-provided locations first, then the dataset directory and
+    RAW_DATA_ROOT. Each search is bounded to three directory levels.
     """
-    for base in (HERE.parent, RAW_DATA_ROOT):
+    for base in (*preferred_roots, HERE.parent, RAW_DATA_ROOT):
         for cand in _dirs_under(base, depth=3):
             if _has_real_fake(cand):
                 return cand
@@ -117,25 +116,25 @@ def make_row(path: Path, label: str) -> dict:
     }
 
 
-def main(argv: list[str] | None = None) -> int:
-    root = find_dataset_root()
-    if root is None:
-        raise SystemExit(
-            "[error] could not find a folder containing Real/ and Fake/ under "
-            f"{HERE.parent} or {RAW_DATA_ROOT}; pass --real-dir and --fake-dir explicitly."
-        )
-    real_default = str(root / "Real")
-    fake_default = str(root / "Fake")
+def main(argv: list[str] | None = None, *, default_out=OUT_CSV, default_sample=300,
+         preferred_roots=()) -> int:
+    root = find_dataset_root(preferred_roots)
+    real_default = str(root / "Real") if root else ""
+    fake_default = str(root / "Fake") if root else ""
 
     parser = argparse.ArgumentParser(
         description="Build DFR60K_manifest.csv from the local 60K folders.")
-    parser.add_argument("--sample", type=int, default=300,
-                        help="max rows to sample per label (default 300)")
+    parser.add_argument("--sample", type=int, default=default_sample,
+                        help="max rows per label; 0 = all (default %(default)s)")
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument("--real-dir", default=real_default)
     parser.add_argument("--fake-dir", default=fake_default)
-    parser.add_argument("--out", default=str(OUT_CSV))
+    parser.add_argument("--out", default=str(default_out))
     args = parser.parse_args(argv)
+    if args.sample < 0:
+        parser.error("--sample must be nonnegative")
+    if not args.real_dir or not args.fake_dir:
+        parser.error("Dataset not found; pass --real-dir and --fake-dir")
 
     real_dir = Path(args.real_dir)
     fake_dir = Path(args.fake_dir)
@@ -151,8 +150,10 @@ def main(argv: list[str] | None = None) -> int:
     rng.shuffle(real_paths)
     rng.shuffle(fake_paths)
 
-    rows = ([make_row(p, "REAL") for p in real_paths[: args.sample]]
-            + [make_row(p, "FAKE") for p in fake_paths[: args.sample]])
+    if args.sample:
+        real_paths, fake_paths = real_paths[:args.sample], fake_paths[:args.sample]
+    rows = ([make_row(p, "REAL") for p in real_paths]
+            + [make_row(p, "FAKE") for p in fake_paths])
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -161,8 +162,7 @@ def main(argv: list[str] | None = None) -> int:
         writer.writeheader()
         writer.writerows(rows)
 
-    n_real = min(args.sample, len(real_paths))
-    n_fake = min(args.sample, len(fake_paths))
+    n_real, n_fake = len(real_paths), len(fake_paths)
     print(f"[saved] {out}")
     print(f"        real={n_real}  fake={n_fake}  total={len(rows)}")
     return 0

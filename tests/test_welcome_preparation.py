@@ -10,6 +10,8 @@ class WelcomePreparationTests(unittest.TestCase):
     def run_screen(self, ready, keys):
         footers = []
         stims = []
+        drawn = []
+        self.drawn = drawn
 
         class Stim:
             def __init__(self, *args, **kwargs):
@@ -17,7 +19,7 @@ class WelcomePreparationTests(unittest.TestCase):
                 stims.append(self)
 
             def draw(self):
-                pass
+                drawn.append(self.text)
 
         keyboard = iter(keys)
         readiness = iter(ready)
@@ -31,7 +33,8 @@ class WelcomePreparationTests(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         with patch.dict("sys.modules", {
             "psychopy": fake_psychopy,
-            "ui": types.SimpleNamespace(Button=None, rounded_rect=Stim, text=Stim),
+            "ui": types.SimpleNamespace(Button=None, rounded_rect=Stim, text=Stim,
+                                        fit_text=lambda *args: None),
             "overlay": types.SimpleNamespace(draw=lambda: None),
         }):
             spec.loader.exec_module(module)
@@ -49,6 +52,7 @@ class WelcomePreparationTests(unittest.TestCase):
         result, footers = self.run_screen([False], [["escape"]])
         self.assertFalse(result)
         self.assertEqual(footers, ["Preparing eye tracker..."])
+        self.assertIn("SEEING THE FAKE", self.drawn)
 
 
 if __name__ == "__main__":

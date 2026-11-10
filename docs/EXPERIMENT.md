@@ -95,7 +95,7 @@ Each session in `data/` (or `data/test/`) produces:
 | `_gaze_raw.csv` | Session gaze stream |
 | `_gaze.csv` | Samples trimmed to image-viewing intervals |
 | `_windows.csv` | Image onset and offset timestamps |
-| `_gaze_image.csv` | Gaze mapped to original image coordinates |
+| `_gaze_image.csv` | Optional gaze mapped to original image coordinates; enable with `--export-image-gaze` |
 | `_display.jsonl` | Image positions, scales and display changes |
 | `_session.json` | Session details, settings and image hashes |
 | `_calibration_checks.jsonl` | Portrait-check outcomes |

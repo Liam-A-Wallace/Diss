@@ -51,7 +51,8 @@ class DecisionReasonTests(unittest.TestCase):
         screens = importlib.util.module_from_spec(spec)
         with patch.dict("sys.modules", {
             "psychopy": psychopy,
-            "ui": types.SimpleNamespace(Button=Stim, rounded_rect=Stim, text=Stim),
+            "ui": types.SimpleNamespace(Button=Stim, rounded_rect=Stim, text=Stim,
+                                        fit_text=lambda *args: None),
             "overlay": types.SimpleNamespace(draw=lambda: None),
         }):
             spec.loader.exec_module(screens)

@@ -34,6 +34,8 @@ from gazefollower.misc import DefaultConfig
 
 import gazefollower_patch
 gazefollower_patch.apply()
+import sdk_rendering
+sdk_rendering.apply()
 
 # Resolve the model path without replacing SDK files.
 _GAZE_MODEL_DIR = os.path.join(_GAZEFOLLOWER_DIR, "gazefollower", "res", "model_weights")
