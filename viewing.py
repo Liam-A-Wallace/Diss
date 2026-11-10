@@ -1,4 +1,5 @@
 """PsychoPy viewing stage; geometry and exports stay independently testable."""
+
 import time
 from PIL import Image
 from psychopy import event, visual
@@ -8,8 +9,20 @@ from errors import QuitExperiment
 from image_view import ImageView
 
 
-def view_image(win, mouse, image, stimulus, counter, hint, gaze, session,
-               trial_index, trigger, practice, condition):
+def view_image(
+    win,
+    mouse,
+    image,
+    stimulus,
+    counter,
+    hint,
+    gaze,
+    session,
+    trial_index,
+    trigger,
+    practice,
+    condition,
+):
     with Image.open(stimulus) as source:
         iw, ih = source.size
     ww, wh = map(int, win.size)
@@ -18,10 +31,26 @@ def view_image(win, mouse, image, stimulus, counter, hint, gaze, session,
     viewport = (0, top, ww, vh)
     view = ImageView(iw, ih, viewport, MAX_ZOOM)
     # Opaque bands clip the image while preserving the counter and control hint.
-    bands = [visual.Rect(win, units="pix", width=ww, height=top,
-                         pos=(0, (wh - top) / 2), fillColor=BG, lineColor=BG),
-             visual.Rect(win, units="pix", width=ww, height=wh - top - vh,
-                         pos=(0, -(top + vh) / 2), fillColor=BG, lineColor=BG)]
+    bands = [
+        visual.Rect(
+            win,
+            units="pix",
+            width=ww,
+            height=top,
+            pos=(0, (wh - top) / 2),
+            fillColor=BG,
+            lineColor=BG,
+        ),
+        visual.Rect(
+            win,
+            units="pix",
+            width=ww,
+            height=wh - top - vh,
+            pos=(0, -(top + vh) / 2),
+            fillColor=BG,
+            lineColor=BG,
+        ),
+    ]
     image.units = "pix"
     win.mouseVisible = True
     mouse.getWheelRel()  # discard scrolling on previous screens
@@ -59,20 +88,32 @@ def view_image(win, mouse, image, stimulus, counter, hint, gaze, session,
             if not pressed:
                 dragging = False
             previous, was_pressed = point, pressed
-            keys = event.getKeys(keyList=["return", "num_enter", "space", "escape", "home"])
+            keys = event.getKeys(
+                keyList=["return", "num_enter", "space", "escape", "home"]
+            )
             if "escape" in keys:
                 raise QuitExperiment()
             if "home" in keys:
                 view.reset()
                 dragging = False
-            if "onset" in stamps and any(k in keys for k in ("return", "num_enter", "space")):
+            if "onset" in stamps and any(
+                k in keys for k in ("return", "num_enter", "space")
+            ):
                 interrupted = False
                 break
             image.size = (iw * view.scale, ih * view.scale)
-            image.pos = (view.left + iw * view.scale / 2 - ww / 2,
-                         wh / 2 - view.top - ih * view.scale / 2)
-            frame = dict(view.snapshot(), stimulus=stimulus, trial=trial_index,
-                         trigger=trigger, is_practice=int(practice), condition=condition)
+            image.pos = (
+                view.left + iw * view.scale / 2 - ww / 2,
+                wh / 2 - view.top - ih * view.scale / 2,
+            )
+            frame = dict(
+                view.snapshot(),
+                stimulus=stimulus,
+                trial=trial_index,
+                trigger=trigger,
+                is_practice=int(practice),
+                condition=condition,
+            )
             image.draw()
             for band in bands:
                 band.draw()
@@ -89,7 +130,14 @@ def view_image(win, mouse, image, stimulus, counter, hint, gaze, session,
         if "onset" in stamps:
             win.callOnFlip(end)
             win.flip()
-            gaze.record_window(trial_index, trigger, practice, condition, stimulus,
-                               stamps["onset"], stamps["offset"])
+            gaze.record_window(
+                trial_index,
+                trigger,
+                practice,
+                condition,
+                stimulus,
+                stamps["onset"],
+                stamps["offset"],
+            )
             session.flush()
     return stamps, win.nDroppedFrames - dropped_before

@@ -1,4 +1,5 @@
 """Background preparation, UI thread ownership and webcam cleanup."""
+
 import threading
 import types
 import unittest
@@ -23,8 +24,9 @@ class PreviewTests(unittest.TestCase):
 
         class UI:
             def __init__(self, **kwargs):
-                self.backend = types.SimpleNamespace(listen_event=lambda host: None,
-                                                     before_draw=lambda: None)
+                self.backend = types.SimpleNamespace(
+                    listen_event=lambda host: None, before_draw=lambda: None
+                )
                 owner.calls.append(("ui", threading.get_ident()))
                 owner.assertEqual(kwargs["win"].units, "pix")
 
@@ -45,7 +47,9 @@ class PreviewTests(unittest.TestCase):
                     raise RuntimeError("Test did not allow model to load")
 
             def detect(self, timestamp, frame):
-                return types.SimpleNamespace(status=False, to_dict=lambda: {"status": False})
+                return types.SimpleNamespace(
+                    status=False, to_dict=lambda: {"status": False}
+                )
 
             def release(self):
                 owner.calls.append(("release_model", threading.get_ident()))
@@ -54,7 +58,10 @@ class PreviewTests(unittest.TestCase):
             def __init__(self, **kwargs):
                 self._cap = types.SimpleNamespace(
                     isOpened=lambda: True,
-                    release=lambda: owner.calls.append(("release_capture", threading.get_ident())))
+                    release=lambda: owner.calls.append(
+                        ("release_capture", threading.get_ident())
+                    ),
+                )
                 owner.camera = self
 
             def set_on_image_callback(self, callback):
@@ -72,7 +79,8 @@ class PreviewTests(unittest.TestCase):
             "gazefollower.ui": types.SimpleNamespace(CameraPreviewerUI=UI),
             "gazefollower.camera": types.SimpleNamespace(WebCamCamera=Camera),
             "gazefollower.face_alignment": types.SimpleNamespace(
-                MediaPipeFaceAlignment=Alignment, BlazeFaceAlignment=Alignment),
+                MediaPipeFaceAlignment=Alignment, BlazeFaceAlignment=Alignment
+            ),
             "gazefollower.misc": types.SimpleNamespace(clip_patch=lambda *args: None),
             "cv2": types.SimpleNamespace(),
         }
@@ -88,8 +96,9 @@ class PreviewTests(unittest.TestCase):
             self.preview.close()
 
     def create(self):
-        tracker = types.SimpleNamespace(config_dict={"webcam_id": 1},
-                                        backend_name=lambda win: "psychopy")
+        tracker = types.SimpleNamespace(
+            config_dict={"webcam_id": 1}, backend_name=lambda win: "psychopy"
+        )
         win = types.SimpleNamespace(units="height")
         self.preview = PreparedPreview(tracker, win)
         self.assertEqual(win.units, "height")
@@ -123,13 +132,23 @@ class PreviewTests(unittest.TestCase):
         self.assertTrue(any(action == "release_model" for action, _ in self.calls))
 
     def test_model_failure_is_reported_to_main_thread(self):
-        with patch.dict("sys.modules", {
-            "gazefollower.face_alignment": types.SimpleNamespace(
-                BlazeFaceAlignment=None,
-                MediaPipeFaceAlignment=lambda **kwargs: (_ for _ in ()).throw(ValueError("model failed")))
-        }):
-            tracker = types.SimpleNamespace(config_dict={}, backend_name=lambda win: "psychopy")
-            self.preview = PreparedPreview(tracker, types.SimpleNamespace(units="height"))
+        with patch.dict(
+            "sys.modules",
+            {
+                "gazefollower.face_alignment": types.SimpleNamespace(
+                    BlazeFaceAlignment=None,
+                    MediaPipeFaceAlignment=lambda **kwargs: (_ for _ in ()).throw(
+                        ValueError("model failed")
+                    ),
+                )
+            },
+        ):
+            tracker = types.SimpleNamespace(
+                config_dict={}, backend_name=lambda win: "psychopy"
+            )
+            self.preview = PreparedPreview(
+                tracker, types.SimpleNamespace(units="height")
+            )
             self.preview._thread.join(1)
             with self.assertRaisesRegex(RuntimeError, "preparation failed") as error:
                 self.preview.check_ready()
@@ -140,14 +159,18 @@ class PreviewTests(unittest.TestCase):
         self.allow_load.set()
         self.assertTrue(self.camera_started.wait(1))
         self.camera.callback(None, 123, "frame")
-        with patch.object(preview.ui, "draw", side_effect=RuntimeError("display failed")):
+        with patch.object(
+            preview.ui, "draw", side_effect=RuntimeError("display failed")
+        ):
             with self.assertRaisesRegex(RuntimeError, "display failed"):
                 preview.show()
         self.assertTrue(self.camera_stopped.is_set())
 
     def test_missing_frame_times_out(self):
         preview = self.create()
-        with patch("gaze_preview.time.monotonic", return_value=preview._started_at + 31):
+        with patch(
+            "gaze_preview.time.monotonic", return_value=preview._started_at + 31
+        ):
             with self.assertRaisesRegex(RuntimeError, "first camera preview frame"):
                 preview.check_ready()
 
@@ -162,12 +185,20 @@ class PreviewTests(unittest.TestCase):
             finish.wait(2)
 
         with patch.object(preview, "_on_frame", side_effect=slow_detection):
-            worker = threading.Thread(target=self.camera.callback, args=(None, 1, "old"))
+            worker = threading.Thread(
+                target=self.camera.callback, args=(None, 1, "old")
+            )
             worker.start()
             try:
                 self.assertTrue(entered.wait(1))
-                with patch.dict("sys.modules", {"cv2": types.SimpleNamespace(
-                        COLOR_BGR2RGB=1, cvtColor=lambda frame, code: "rgb:" + frame)}):
+                with patch.dict(
+                    "sys.modules",
+                    {
+                        "cv2": types.SimpleNamespace(
+                            COLOR_BGR2RGB=1, cvtColor=lambda frame, code: "rgb:" + frame
+                        )
+                    },
+                ):
                     self.camera._preview_frame_callback(2, "new")
                 preview.ui.backend.before_draw()
                 self.assertEqual(preview.ui.frame_image, "rgb:new")
@@ -190,15 +221,23 @@ class PreviewTests(unittest.TestCase):
         self.allow_load.set()
         self.assertTrue(self.camera_started.wait(1))
         keyboard = types.SimpleNamespace(getKeys=lambda **kwargs: ["escape"])
-        with patch.dict("sys.modules", {"psychopy": types.SimpleNamespace(event=keyboard)}):
-            with patch.object(preview.ui, "draw", side_effect=lambda: preview.ui.backend.listen_event(preview.ui)):
+        with patch.dict(
+            "sys.modules", {"psychopy": types.SimpleNamespace(event=keyboard)}
+        ):
+            with patch.object(
+                preview.ui,
+                "draw",
+                side_effect=lambda: preview.ui.backend.listen_event(preview.ui),
+            ):
                 with self.assertRaises(QuitExperiment):
                     preview.show()
         self.assertTrue(self.camera_stopped.is_set())
 
     def test_continuing_requires_camera_cleanup_to_finish(self):
         preview = self.create()
-        with patch.object(preview.ui, "draw"), patch.object(preview, "close", return_value=False):
+        with patch.object(preview.ui, "draw"), patch.object(
+            preview, "close", return_value=False
+        ):
             with self.assertRaisesRegex(RuntimeError, "did not stop"):
                 preview.show()
 

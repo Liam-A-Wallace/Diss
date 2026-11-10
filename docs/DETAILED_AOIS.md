@@ -45,6 +45,26 @@ landmark CSVs. Parent mapping is metadata for downstream aggregation; current
 gaze analysis reports detailed labels and does not also count parent labels.
 
 
+## Manually correct individual landmarks and features
+
+Run `python analyse.py edit --detailed --test`. Select **All facial landmarks**
+for the complete mesh, or choose any facial feature in **Edit feature** to move
+its individual contour points. Every AOI uses the same controls: drag handles,
+arrow keys, zoom, undo/redo and reset. Double-click an edge to add a handle;
+Delete removes the selected handle. Save corrections, then run
+`python analyse.py review --manual --test` and
+`python analyse.py --manual --test`.
+
+A feature's starting contour follows its largest detected component. If the
+feature is missing, a small central starting contour is provided for manual
+placement. Selecting it alone changes nothing. Editing replaces the selected
+label's mask; vacated pixels become uncertain. Other primary features are
+protected from accidental painting, and overlapping manual contours are
+rejected. Each saved mask remains a non-overlapping label partition.
+Existing saved corrections are loaded, and all corrections require review.
+Save your work before stopping an older editor with Ctrl+C; restart the edit
+command and refresh the page to load these controls.
+
 ## Limits
 
 Derived skin labels describe approximate positions, not eye bags, wrinkles or

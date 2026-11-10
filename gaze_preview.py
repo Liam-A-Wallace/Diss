@@ -3,6 +3,7 @@
 Only camera/model work runs in the background. SDK UI construction and drawing
 stay on the PsychoPy thread; the upstream checkout remains untouched.
 """
+
 import threading
 import time
 
@@ -12,6 +13,7 @@ from errors import QuitExperiment
 class PreparedPreview:
     def __init__(self, tracker, win):
         from sdk_rendering import apply
+
         apply()
         from gazefollower.ui import CameraPreviewerUI
 
@@ -51,6 +53,7 @@ class PreparedPreview:
 
         def listen_with_escape(host, *args, **kwargs):
             from psychopy import event
+
             if "escape" in event.getKeys(keyList=["escape"]):
                 raise QuitExperiment()
             return listen_event(host, *args, **kwargs)
@@ -66,29 +69,41 @@ class PreparedPreview:
                 self.ui.frame_image = frame
 
         self.ui.backend.before_draw = refresh_camera_frame
-        self._thread = threading.Thread(target=self._prepare, daemon=True,
-                                        name="camera-preview-preparation")
+        self._thread = threading.Thread(
+            target=self._prepare, daemon=True, name="camera-preview-preparation"
+        )
         self._thread.start()
 
     def _prepare(self):
         camera = alignment = None
         try:
             from gazefollower.camera import WebCamCamera
-            from gazefollower.face_alignment import BlazeFaceAlignment, MediaPipeFaceAlignment
+            from gazefollower.face_alignment import (
+                BlazeFaceAlignment,
+                MediaPipeFaceAlignment,
+            )
 
             cfg = self._config
-            factory = (BlazeFaceAlignment if cfg.get("face_alignment_type") == "blazeface"
-                       else MediaPipeFaceAlignment)
-            alignment = factory(enable_filter=cfg.get("enable_face_filter", True),
-                                filter_min_cutoff=cfg.get("filter_min_cutoff", 1.0),
-                                filter_beta=cfg.get("filter_beta", 0.01))
+            factory = (
+                BlazeFaceAlignment
+                if cfg.get("face_alignment_type") == "blazeface"
+                else MediaPipeFaceAlignment
+            )
+            alignment = factory(
+                enable_filter=cfg.get("enable_face_filter", True),
+                filter_min_cutoff=cfg.get("filter_min_cutoff", 1.0),
+                filter_beta=cfg.get("filter_beta", 0.01),
+            )
             if self._stop.is_set():
                 return
             camera = WebCamCamera(webcam_id=cfg.get("webcam_id", 0))
             if self._stop.is_set():
                 return
             camera.set_on_image_callback(
-                lambda state, timestamp, frame: self._on_frame(alignment, timestamp, frame))
+                lambda state, timestamp, frame: self._on_frame(
+                    alignment, timestamp, frame
+                )
+            )
             camera._preview_frame_callback = self._on_raw_frame
             camera.start_previewing()
             if not camera._cap.isOpened():
@@ -111,6 +126,7 @@ class PreparedPreview:
 
     def _on_raw_frame(self, timestamp, frame):
         import cv2
+
         # Capture owns BGR frames; publish an independent RGB image so face
         # annotations and detection cannot mutate the displayed frame.
         image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -129,14 +145,17 @@ class PreparedPreview:
                 face = clip_patch(frame, info.face_rect)
                 left = clip_patch(frame, info.left_rect)
                 right = clip_patch(frame, info.right_rect)
-                for rect, colour in ((info.left_rect, (255, 0, 0)),
-                                     (info.right_rect, (0, 0, 255))):
+                for rect, colour in (
+                    (info.left_rect, (255, 0, 0)),
+                    (info.right_rect, (0, 0, 255)),
+                ):
                     x, y, w, h = rect
                     cv2.rectangle(frame, (x, y), (x + w, y + h), colour, 2)
                     if face is not None:
                         fx, fy, _, _ = info.face_rect
-                        cv2.rectangle(face, (x - fx, y - fy),
-                                      (x - fx + w, y - fy + h), colour, 2)
+                        cv2.rectangle(
+                            face, (x - fx, y - fy), (x - fx + w, y - fy + h), colour, 2
+                        )
             with self._lock:
                 self._latest = ((frame, face, left, right), info.to_dict())
             self._ready.set()

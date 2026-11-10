@@ -1,4 +1,5 @@
 """Check image selection, retry logging, and rejection of stale gaze."""
+
 import json
 from pathlib import Path
 import tempfile
@@ -15,21 +16,35 @@ class CalibrationCheckTests(unittest.TestCase):
         class Stim:
             def __init__(self, *args, **kwargs):
                 pass
+
             def draw(self):
                 pass
+
         keyboard = iter(keys)
         fake = types.SimpleNamespace(
-            event=types.SimpleNamespace(clearEvents=lambda: None, getKeys=lambda **kw: next(keyboard)),
-            visual=types.SimpleNamespace(ImageStim=Stim, Circle=Stim))
-        gaze = types.SimpleNamespace(mark_trial=lambda value: None, poll=lambda: (500, 500),
-                                     recent_gaze=lambda value: True, _last_info_ts=timestamp,
-                                     screen_size=(1000, 1000))
+            event=types.SimpleNamespace(
+                clearEvents=lambda: None, getKeys=lambda **kw: next(keyboard)
+            ),
+            visual=types.SimpleNamespace(ImageStim=Stim, Circle=Stim),
+        )
+        gaze = types.SimpleNamespace(
+            mark_trial=lambda value: None,
+            poll=lambda: (500, 500),
+            recent_gaze=lambda value: True,
+            _last_info_ts=timestamp,
+            screen_size=(1000, 1000),
+        )
         win = types.SimpleNamespace(size=(1000, 1000), flip=lambda: None)
         with tempfile.TemporaryDirectory() as tmp:
             source, log = Path(tmp) / "photo.png", Path(tmp) / "check.jsonl"
             Image.new("RGB", (100, 100)).save(source)
-            with patch.dict("sys.modules", psychopy=fake, ui=types.SimpleNamespace(text=Stim)), patch.object(
-                    calibration_check.time, "time_ns", side_effect=iter(range(1000000000, 10000000000, 1200000000))):
+            with patch.dict(
+                "sys.modules", psychopy=fake, ui=types.SimpleNamespace(text=Stim)
+            ), patch.object(
+                calibration_check.time,
+                "time_ns",
+                side_effect=iter(range(1000000000, 10000000000, 1200000000)),
+            ):
                 try:
                     result = calibration_check.check_image(win, gaze, source, log)
                 except QuitExperiment:

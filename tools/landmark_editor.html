@@ -1,0 +1,132 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Facial landmark editor</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font:15px system-ui;background:#f2f4f7;color:#18212b}header{padding:14px 20px;background:#fff;border-bottom:1px solid #ccd3db}h1{font-size:21px;margin:0 0 5px}p{margin:4px 0;line-height:1.45}main{display:grid;grid-template-columns:minmax(0,1fr) 310px;height:calc(100vh - 100px);min-height:520px}#viewport{position:relative;overflow:hidden;background:#18212b}canvas{display:block;touch-action:none;width:100%;height:100%}aside{padding:16px;overflow:auto;background:white}label{display:block;margin:10px 0 5px}select,textarea,input[type=number]{width:100%;padding:7px;border:1px solid #a6b1be;border-radius:5px}button{padding:8px 10px;border:1px solid #a6b1be;border-radius:5px;background:#fff;cursor:pointer}button:hover{background:#edf3fa}button:disabled{opacity:.45;cursor:default}.row{display:flex;gap:6px;margin:10px 0;align-items:center}.row>*{flex:1}#save{background:#195dba;color:white;width:100%;font-weight:600}#status{padding:10px;background:#eef3fa;border-radius:5px;white-space:pre-wrap}#status.error{background:#ffe5e5;color:#842424}#flags{padding-left:18px;color:#814a16;font-size:13px}small{display:block;line-height:1.45;color:#465365}#legend{display:grid;grid-template-columns:18px 1fr;gap:5px;font-size:12px;margin-top:10px}.swatch{width:14px;height:14px;border:1px solid #777}input[type=range]{width:100%}@media(max-width:800px){main{grid-template-columns:1fr;height:auto}#viewport{height:65vh}aside{height:auto}}a{color:#195dba}
+</style>
+<header><h1>Facial landmark editor</h1><p>Select a feature or the full mesh, then drag its individual points to fit the face.</p></header>
+<main><div id="viewport"><canvas id="canvas" tabindex="0" aria-label="Face and draggable landmarks"></canvas></div><aside>
+<label for="images">Face</label><select id="images" disabled></select>
+<div class="row"><button id="previous">Previous</button><button id="next">Next</button></div>
+<label for="editMode">Edit feature</label><select id="editMode"><option value="landmarks">All facial landmarks</option></select><button id="resetRegion">Restore automatic feature</button>
+<label for="group">Visible landmarks</label><select id="group"><option value="all">All mesh points</option><option value="used">AOI boundary points</option><option value="forehead">Forehead / temples</option><option value="eyes">Lower eyelids</option><option value="cheeks">Cheeks / nose wings</option><option value="chin">Chin / lower lip</option><option value="oval">Face outline</option></select>
+<label><input id="showPoints" type="checkbox" checked> Show landmarks and guides</label>
+<label><input id="showOverlay" type="checkbox" checked> Show AOI overlay</label>
+<label for="opacity">Overlay opacity <span id="opacityValue">35%</span></label><input id="opacity" type="range" min="0" max="100" value="35">
+<div class="row"><button id="fit">Fit image</button><button id="zoomIn">Zoom +</button><button id="zoomOut">Zoom −</button></div>
+<small>Wheel: zoom at cursor. Space + drag or middle mouse: pan. Click a point to select it. Arrow keys: move 1 pixel; Shift: 10 pixels.</small>
+<label for="pointId">Selected point ID</label><input id="pointId" type="number" min="0" max="477" step="1" value="0">
+<div class="row"><label>X<input id="pointX" type="number" step="0.1"></label><label>Y<input id="pointY" type="number" step="0.1"></label></div>
+<div class="row"><button id="undo">Undo</button><button id="redo">Redo</button></div>
+<div class="row"><button id="resetPoint">Reset point</button><button id="resetAll">Reset all</button></div>
+<label for="note">Correction note</label><textarea id="note" rows="2" placeholder="What did you correct and why?"></textarea>
+<button id="save">Save corrections</button><p id="status" role="status" aria-live="polite">Loading faces…</p>
+<small>Orange points were moved. Blue points are automatic. Saved corrections are separate and require AOI review before analysis.</small>
+<ul id="flags"></ul><details><summary>Label colours</summary><div id="legend"></div></details>
+</aside></main>
+<script>
+'use strict';
+const $=id=>document.getElementById(id), token=location.hash.slice(1);
+const groups={forehead:[127,70,63,105,66,107,9,336,296,334,293,300,356],
+eyes:[33,7,163,144,145,153,154,155,133,263,249,390,373,374,380,381,382,362],
+cheeks:[127,234,93,132,58,172,138,61,203,129,98,133,33,356,454,323,361,288,397,367,291,423,358,327,362,263],
+chin:[61,146,91,181,84,17,314,405,321,375,291,367,397,365,379,378,400,377,152,148,176,149,150,136,172,138],
+oval:[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109]};
+const guides=[groups.forehead,groups.eyes.slice(0,9),groups.eyes.slice(9),groups.cheeks.slice(0,13),groups.cheeks.slice(13),groups.chin,groups.oval];
+const canvas=$('canvas'),ctx=canvas.getContext('2d');
+let faces=[],face=null,points=[],original=[],version=null,selected=0,photo=null,overlay=null,undo=[],redo=[],dirty=false;
+let regions={},originalRegions={};
+function regionMode(){return $('editMode').value!=='landmarks'}
+function activePoints(){return regionMode()?(regions[$('editMode').value]||originalRegions[$('editMode').value]||[]):points}
+function editablePoints(){if(regionMode()){const side=$('editMode').value;if(!regions[side])regions[side]=clone(originalRegions[side]);return regions[side]}return points}
+function snapshot(){return clone({points,regions})}
+function restore(value){points=value.points;regions=value.regions;selected=Math.min(selected,activePoints().length-1)}
+let scale=1,tx=0,ty=0,drag=null,space=false,revision=0,inflight=false,pending=false,timer=null,loading=false;
+const clone=value=>JSON.parse(JSON.stringify(value));
+function status(message,error=false){$('status').textContent=message;$('status').classList.toggle('error',error)}
+async function api(path,body){const response=await fetch(path,{method:body?'POST':'GET',headers:{'X-Editor-Token':token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});if(!response.ok){let error=await response.json();throw Error(error.error||response.statusText)}return response.json()}
+function loadImage(url){return new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(Error('Could not load image'));image.src=url})}
+function visible(){const group=$('group').value;return group==='all'?points.map((_,i)=>i):group==='used'?[...new Set(Object.values(groups).flat().concat([1,105,334,50,187,280,411]))]:groups[group]}
+function sync(){const p=activePoints();if(p[selected]){$('pointId').value=selected;$('pointId').max=p.length-1;$('pointX').value=p[selected][0].toFixed(1);$('pointY').value=p[selected][1].toFixed(1)}$('undo').disabled=!undo.length||loading;$('redo').disabled=!redo.length||loading;$('save').disabled=!face||loading;$('resetAll').disabled=!face||loading;$('resetRegion').disabled=!face||loading||!regionMode();}
+function draw(){ctx.clearRect(0,0,canvas.width,canvas.height);if(!photo)return;ctx.save();ctx.translate(tx,ty);ctx.scale(scale,scale);ctx.drawImage(photo,0,0);if(overlay&&$('showOverlay').checked){ctx.globalAlpha=+$('opacity').value/100;ctx.drawImage(overlay,0,0);ctx.globalAlpha=1}if($('showPoints').checked){const ids=new Set(visible());ctx.strokeStyle='#55ceff';ctx.lineWidth=1/scale;for(const line of guides){ctx.beginPath();let start=true;for(const id of line){if(!ids.has(id)){start=true;continue}const p=points[id];if(!p)continue;if(start)ctx.moveTo(p[0],p[1]);else ctx.lineTo(p[0],p[1]);start=false}ctx.stroke()}for(const id of new Set([...ids,selected])){const p=points[id];if(!p)continue;const moved=p[0]!==original[id][0]||p[1]!==original[id][1];ctx.fillStyle=id===selected?'#fff':moved?'#ff9300':'#00c8ff';ctx.strokeStyle='#17212b';ctx.lineWidth=1/scale;ctx.beginPath();ctx.arc(p[0],p[1],(id===selected?6:3)/scale,0,Math.PI*2);ctx.fill();ctx.stroke()}const p=points[selected];if(p){ctx.font=`${13/scale}px system-ui`;ctx.fillStyle='#fff';ctx.strokeStyle='#000';ctx.lineWidth=3/scale;ctx.strokeText(String(selected),p[0]+8/scale,p[1]-8/scale);ctx.fillText(String(selected),p[0]+8/scale,p[1]-8/scale)}}ctx.restore()}
+function fit(){if(!face)return;scale=Math.min(canvas.width/face.width,canvas.height/face.height)*.95;tx=(canvas.width-face.width*scale)/2;ty=(canvas.height-face.height*scale)/2;draw()}
+function resize(){canvas.width=$('viewport').clientWidth;canvas.height=$('viewport').clientHeight;fit()}
+new ResizeObserver(resize).observe($('viewport'));
+function changed(){dirty=true;revision++;sync();draw();clearTimeout(timer);timer=setTimeout(refresh,180);status('Unsaved landmark changes')}
+function checkpoint(){undo.push(snapshot());if(undo.length>120)undo.shift();redo=[]}
+async function refresh(){if(!face)return;if(inflight){pending=true;return}inflight=true;pending=false;const stamp=revision,key=face.id;try{const result=await api('/api/preview',{id:key,points:clone(points)});const rendered=await loadImage('data:image/png;base64,'+result.mask);if(face.id===key&&stamp===revision){overlay=rendered;$('flags').replaceChildren(...result.flags.map(flag=>{const li=document.createElement('li');li.textContent=flag;return li}));draw();status(`${dirty?'Unsaved changes':'Preview ready'} · ${result.changed} moved landmarks`)}}catch(error){status(error.message,true)}finally{inflight=false;if(pending||stamp!==revision)refresh()}}
+async function choose(index){if(loading)return;if(dirty&&!confirm('Discard unsaved changes on this face?')){$('images').value=face.id;return}loading=true;sync();status('Loading face…');try{const candidate=faces[index];if(!candidate.editable)throw Error('No landmark mesh exists for this face. Choose another image.');const state=await api('/api/state/'+candidate.id);const response=await fetch('/api/image/'+candidate.id,{headers:{'X-Editor-Token':token}});if(!response.ok)throw Error('Could not load face image');const blob=URL.createObjectURL(await response.blob());let image;try{image=await loadImage(blob)}finally{URL.revokeObjectURL(blob)}face=candidate;points=state.points;original=state.original_points;version=state.version;photo=image;overlay=null;selected=0;undo=[];redo=[];dirty=false;revision++;$('images').value=face.id;$('note').value=state.note;const legend=$('legend');legend.replaceChildren();for(const [key,name] of Object.entries(state.labels)){const k=+key,swatch=document.createElement('span'),label=document.createElement('span');swatch.className='swatch';swatch.style.background=k===255?'rgb(96,96,96)':`rgb(${(k*83+50)%256},${(k*137+80)%256},${(k*47+130)%256})`;label.textContent=name;legend.append(swatch,label)}fit();await refresh()}catch(error){status(error.message,true);if(face)$('images').value=face.id}finally{loading=false;sync()}}
+function screen(event){const r=canvas.getBoundingClientRect();return [event.clientX-r.left,event.clientY-r.top]}
+function imagePosition(event){const [x,y]=screen(event);return [(x-tx)/scale,(y-ty)/scale]}
+function zoom(multiplier,x=canvas.width/2,y=canvas.height/2){const next=Math.max(.05,Math.min(20,scale*multiplier)),factor=next/scale;tx=x-(x-tx)*factor;ty=y-(y-ty)*factor;scale=next;draw()}
+canvas.addEventListener('wheel',e=>{e.preventDefault();zoom(Math.exp(-e.deltaY*.0015),...screen(e))},{passive:false});
+canvas.addEventListener('pointerdown',e=>{if(!face||loading)return;canvas.focus();const [sx,sy]=screen(e);if(space||e.button===1){drag={pan:true,x:sx,y:sy,tx,ty}}else if(e.button===0&&$('showPoints').checked){const [x,y]=imagePosition(e);let best=11/scale,id=null;for(const i of new Set([...visible(),selected])){const d=Math.hypot(points[i][0]-x,points[i][1]-y);if(d<best){best=d;id=i}}if(id===null)return;selected=id;checkpoint();drag={id};sync();draw()}if(drag)canvas.setPointerCapture(e.pointerId)});
+canvas.addEventListener('pointermove',e=>{if(!drag)return;if(drag.pan){const [x,y]=screen(e);tx=drag.tx+x-drag.x;ty=drag.ty+y-drag.y;draw()}else{const [x,y]=imagePosition(e);points[drag.id][0]=Math.max(0,Math.min(face.width-1,x));points[drag.id][1]=Math.max(0,Math.min(face.height-1,y));changed()}});
+function endDrag(){if(drag&&!drag.pan){clearTimeout(timer);refresh()}drag=null}
+canvas.addEventListener('pointerup',endDrag);canvas.addEventListener('pointercancel',endDrag);
+window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName))return;if(e.code==='Space'){space=true;e.preventDefault()}if(!points.length||loading)return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();(e.shiftKey?$('redo'):$('undo')).click();return}const direction={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];if(direction){e.preventDefault();checkpoint();const step=e.shiftKey?10:1;points[selected][0]=Math.max(0,Math.min(face.width-1,points[selected][0]+direction[0]*step));points[selected][1]=Math.max(0,Math.min(face.height-1,points[selected][1]+direction[1]*step));changed()}});
+window.addEventListener('keyup',e=>{if(e.code==='Space')space=false});window.addEventListener('blur',()=>{space=false;endDrag()});
+$('images').onchange=()=>choose(faces.findIndex(f=>f.id===$('images').value));
+for(const [button,delta] of [['previous',-1],['next',1]])$(button).onclick=()=>{const index=faces.findIndex(f=>face&&f.id===face.id);choose((index+delta+faces.length)%faces.length)};
+$('group').onchange=draw;$('showPoints').onchange=draw;$('showOverlay').onchange=draw;$('opacity').oninput=()=>{$('opacityValue').textContent=$('opacity').value+'%';draw()};$('fit').onclick=fit;$('zoomIn').onclick=()=>zoom(1.3);$('zoomOut').onclick=()=>zoom(1/1.3);
+$('pointId').onchange=()=>{if(!points.length)return;selected=Math.max(0,Math.min(points.length-1,Math.round(+$('pointId').value)||0));sync();draw()};
+for(const id of ['pointX','pointY'])$(id).onchange=()=>{if(!face||loading)return;const value=+$(id).value;if(!Number.isFinite(value))return;checkpoint();const axis=id==='pointX'?0:1;points[selected][axis]=Math.max(0,Math.min((axis?face.height:face.width)-1,value));changed()};
+$('undo').onclick=()=>{if(!undo.length||loading)return;redo.push(clone(points));points=undo.pop();changed()};$('redo').onclick=()=>{if(!redo.length||loading)return;undo.push(clone(points));points=redo.pop();changed()};
+$('resetPoint').onclick=()=>{if(!face||loading)return;checkpoint();points[selected]=clone(original[selected]);changed()};$('resetAll').onclick=()=>{if(!face||loading)return;checkpoint();points=clone(original);changed()};$('note').oninput=()=>{dirty=true;status('Unsaved correction note')};
+$('save').onclick=async()=>{if(!face||loading)return;const stamp=revision,snapshot=clone(points),note=$('note').value;loading=true;sync();status('Saving corrected AOIs…');try{const result=await api('/api/save',{id:face.id,points:snapshot,version,note});version=result.version;if(stamp===revision&&note===$('note').value)dirty=false;status(`Saved ${result.changed} moved landmarks. Corrected masks require review.`)}catch(error){status(error.message,true)}finally{loading=false;sync()}};
+window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
+api('/api/images').then(result=>{faces=result;if(!faces.length)throw Error('No generated faces to edit');$('images').replaceChildren(...faces.map(f=>{const option=document.createElement('option');option.value=f.id;option.textContent=f.name+(f.editable?'':' — no mesh');return option}));$('images').disabled=false;choose(Math.max(0,faces.findIndex(f=>f.editable)))}).catch(e=>status(e.message,true));
+// Contour editing shares the same coordinate system, history and persistence
+// as landmark edits. Overrides are explicit; merely selecting a feature is inert.
+const request=api;
+api=async function(path,body){
+  if(body&&(path==='/api/preview'||path==='/api/save'))body.regions=clone(regions);
+  const result=await request(path,body);
+  if(path.startsWith('/api/state/')){originalRegions=clone(result.original_regions);regions=clone(result.regions);const mode=$('editMode');mode.replaceChildren();const mesh=document.createElement('option');mesh.value='landmarks';mesh.textContent='All facial landmarks';mode.append(mesh);for(const [id,name] of Object.entries(result.labels)){if(+id<1||+id>24)continue;const option=document.createElement('option');option.value=id;option.textContent=name.replaceAll('_',' ');mode.append(option)}mode.value='landmarks'}
+  return result;
+};
+const drawLandmarks=draw;
+draw=function(){
+  const show=$('showPoints').checked;
+  if(regionMode())$('showPoints').checked=false;
+  drawLandmarks();$('showPoints').checked=show;
+  if(!regionMode()||!photo||!show)return;
+  const p=activePoints();ctx.save();ctx.translate(tx,ty);ctx.scale(scale,scale);
+  ctx.strokeStyle='#00dcff';ctx.lineWidth=2/scale;ctx.beginPath();
+  p.forEach((q,i)=>i?ctx.lineTo(...q):ctx.moveTo(...q));ctx.closePath();ctx.stroke();
+  p.forEach((q,i)=>{ctx.fillStyle=i===selected?'white':regions[$('editMode').value]?'#ff9300':'#00c8ff';ctx.strokeStyle='#111';ctx.lineWidth=1/scale;ctx.beginPath();ctx.arc(...q,(i===selected?6:4)/scale,0,Math.PI*2);ctx.fill();ctx.stroke()});
+  ctx.restore();
+};
+$('editMode').onchange=()=>{endDrag();selected=0;$('resetPoint').textContent=regionMode()?'Restore feature':'Reset point';sync();draw()};
+// Capture contour events before the original mesh handlers.
+canvas.addEventListener('pointerdown',e=>{
+  if(!regionMode()||space||e.button===1)return;
+  e.stopImmediatePropagation();if(!face||loading||!$('showPoints').checked||e.button!==0)return;
+  canvas.focus();const [x,y]=imagePosition(e);let best=12/scale,id=null;
+  activePoints().forEach((q,i)=>{const d=Math.hypot(q[0]-x,q[1]-y);if(d<best){best=d;id=i}});
+  if(id===null)return;selected=id;checkpoint();editablePoints();drag={region:true,id};canvas.setPointerCapture(e.pointerId);sync();draw();
+},true);
+canvas.addEventListener('pointermove',e=>{
+  if(!drag?.region)return;e.stopImmediatePropagation();
+  const q=imagePosition(e);editablePoints()[drag.id]=[Math.max(0,Math.min(face.width-1,q[0])),Math.max(0,Math.min(face.height-1,q[1]))];changed();
+},true);
+canvas.addEventListener('dblclick',e=>{
+  if(!regionMode()||!face||loading||!$('showPoints').checked)return;
+  const p=activePoints(),q=imagePosition(e);let best=14/scale,edge=null,projection=null;
+  p.forEach((a,i)=>{const b=p[(i+1)%p.length],dx=b[0]-a[0],dy=b[1]-a[1],t=Math.max(0,Math.min(1,((q[0]-a[0])*dx+(q[1]-a[1])*dy)/(dx*dx+dy*dy||1))),r=[a[0]+t*dx,a[1]+t*dy],d=Math.hypot(q[0]-r[0],q[1]-r[1]);if(d<best){best=d;edge=i;projection=r}});
+  if(edge===null||p.length>=128)return;checkpoint();editablePoints().splice(edge+1,0,projection);selected=edge+1;changed();
+});
+window.addEventListener('keydown',e=>{
+  if(!regionMode()||!face||loading||['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName))return;
+  const direction={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];
+  if(direction){e.preventDefault();e.stopImmediatePropagation();checkpoint();const p=editablePoints(),q=p[selected],step=e.shiftKey?10:1;q[0]=Math.max(0,Math.min(face.width-1,q[0]+direction[0]*step));q[1]=Math.max(0,Math.min(face.height-1,q[1]+direction[1]*step));changed()}
+  if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();e.stopImmediatePropagation();if(activePoints().length>3){checkpoint();editablePoints().splice(selected,1);selected=Math.min(selected,activePoints().length-1);changed()}}
+},true);
+$('pointId').onchange=()=>{selected=Math.max(0,Math.min(activePoints().length-1,Math.round(+$('pointId').value)||0));sync();draw()};
+for(const id of ['pointX','pointY'])$(id).onchange=()=>{if(!face||loading)return;const value=+$(id).value;if(!Number.isFinite(value))return;checkpoint();const axis=id==='pointX'?0:1;editablePoints()[selected][axis]=Math.max(0,Math.min((axis?face.height:face.width)-1,value));changed()};
+$('undo').onclick=()=>{if(!undo.length||loading)return;redo.push(snapshot());restore(undo.pop());changed()};
+$('redo').onclick=()=>{if(!redo.length||loading)return;undo.push(snapshot());restore(redo.pop());changed()};
+$('resetPoint').onclick=()=>{if(!face||loading)return;if(regionMode()){$('resetRegion').click();return}checkpoint();points[selected]=clone(original[selected]);changed()};
+$('resetRegion').onclick=()=>{if(!face||loading||!regionMode())return;checkpoint();delete regions[$('editMode').value];selected=0;changed()};
+$('resetAll').onclick=()=>{if(!face||loading)return;checkpoint();points=clone(original);regions={};selected=0;changed()};
+$('save').onclick=async()=>{if(!face||loading)return;const stamp=revision,note=$('note').value;loading=true;sync();status('Saving corrected AOIs…');try{const result=await api('/api/save',{id:face.id,points:clone(points),version,note});version=result.version;if(stamp===revision&&note===$('note').value)dirty=false;status(`Saved ${result.changed} moved landmarks and ${Object.keys(regions).length} corrected eyeregions. AOI review required.`)}catch(error){status(error.message,true)}finally{loading=false;sync()}};
+</script></html>

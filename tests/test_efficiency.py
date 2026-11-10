@@ -1,4 +1,5 @@
 """Regression checks for deferred I/O, streaming and camera shutdown."""
+
 import csv
 from pathlib import Path
 import tempfile
@@ -39,7 +40,11 @@ class EfficiencyTests(unittest.TestCase):
                 resume.set()
                 log.finish("complete")
             import json
-            rows = [json.loads(line) for line in Path(base + "_display.jsonl").read_text().splitlines()]
+
+            rows = [
+                json.loads(line)
+                for line in Path(base + "_display.jsonl").read_text().splitlines()
+            ]
             self.assertEqual([r["kind"] for r in rows], ["present", "offset"])
 
     def test_writer_failure_reaches_caller(self):
@@ -61,22 +66,32 @@ class EfficiencyTests(unittest.TestCase):
 
             write_csv(path, rows(), ["value"])
             with path.open() as source:
-                self.assertEqual(list(csv.DictReader(source)), [{"value": "1"}, {"value": "2"}])
+                self.assertEqual(
+                    list(csv.DictReader(source)), [{"value": "1"}, {"value": "2"}]
+                )
 
     def test_optional_export_keeps_first_sample(self):
         with tempfile.TemporaryDirectory() as folder:
             base = str(Path(folder) / "s")
             with patch("analysis.ingest.load_display", return_value=[]), patch(
-                    "analysis.ingest.align_samples", return_value=iter([{"timestamp": 1}, {"timestamp": 2}])):
+                "analysis.ingest.align_samples",
+                return_value=iter([{"timestamp": 1}, {"timestamp": 2}]),
+            ):
                 export_image_gaze(base)
             with open(base + "_gaze_image.csv") as source:
-                self.assertEqual(list(csv.DictReader(source)), [{"timestamp": "1"}, {"timestamp": "2"}])
+                self.assertEqual(
+                    list(csv.DictReader(source)),
+                    [{"timestamp": "1"}, {"timestamp": "2"}],
+                )
 
     def test_shutdown_never_releases_capture_while_read_is_blocked(self):
         released = []
         camera = types.SimpleNamespace(
-            _camera_thread=types.SimpleNamespace(join=lambda timeout: None, is_alive=lambda: True),
-            _cap=types.SimpleNamespace(release=lambda: released.append(True)))
+            _camera_thread=types.SimpleNamespace(
+                join=lambda timeout: None, is_alive=lambda: True
+            ),
+            _cap=types.SimpleNamespace(release=lambda: released.append(True)),
+        )
         with self.assertRaises(TimeoutError):
             stop_camera(camera, timeout=0.01)
         self.assertFalse(camera._camera_thread_running)
@@ -85,14 +100,19 @@ class EfficiencyTests(unittest.TestCase):
     def test_demo_passes_options_without_mutating_argv(self):
         import demo
         import sys
+
         original = list(sys.argv)
         calls = []
-        with patch.object(demo, "prepare", return_value=Path("demo.csv")), patch.object(demo.os, "chdir"), patch.dict(
-                "sys.modules", {"experiment": types.SimpleNamespace(main=calls.append)}):
+        with patch.object(demo, "prepare", return_value=Path("demo.csv")), patch.object(
+            demo.os, "chdir"
+        ), patch.dict(
+            "sys.modules", {"experiment": types.SimpleNamespace(main=calls.append)}
+        ):
             demo.main(["--gaze-dot"])
         self.assertEqual(sys.argv, original)
         self.assertIn("--no-break", calls[0])
         self.assertIn("--demo", calls[0])
+
 
 if __name__ == "__main__":
     unittest.main()

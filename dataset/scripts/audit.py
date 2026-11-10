@@ -64,26 +64,37 @@ def main() -> None:
     for lab in common.LABELS:
         vals = sorted(float(r["confidence_score"]) for r in rows if r["label"] == lab)
         mean = sum(vals) / len(vals)
-        print(f"  {lab:6s} n={len(vals)}  min={min(vals):.2f}  mean={mean:.3f}  max={max(vals):.2f}")
+        print(
+            f"  {lab:6s} n={len(vals)}  min={min(vals):.2f}  mean={mean:.3f}  max={max(vals):.2f}"
+        )
         print(f"         buckets: {_hist(vals)}")
     print()
 
     # 5. does confidence separate the existing difficulty labels?
     print("---- confidence vs existing difficulty (FAKE) ----")
     for d in ("Medium", "Hard"):
-        vals = [float(r["confidence_score"]) for r in rows
-                if r["label"] == "FAKE" and r["detection_difficulty"] == d]
+        vals = [
+            float(r["confidence_score"])
+            for r in rows
+            if r["label"] == "FAKE" and r["detection_difficulty"] == d
+        ]
         if vals:
             mean = sum(vals) / len(vals)
-            print(f"  FAKE {d:7s} n={len(vals):<5} min={min(vals):.2f} mean={mean:.3f} max={max(vals):.2f}")
-    print("  => existing Medium/Hard FAKE labels are NOT separable by confidence_score.")
+            print(
+                f"  FAKE {d:7s} n={len(vals):<5} min={min(vals):.2f} mean={mean:.3f} max={max(vals):.2f}"
+            )
+    print(
+        "  => existing Medium/Hard FAKE labels are NOT separable by confidence_score."
+    )
     print()
 
     # 1./2. what confidence_score means
     print("---- what does confidence_score represent? ----")
     has_predicted = any("predict" in c.lower() or "prob" in c.lower() for c in rows[0])
-    print("  * No predicted-class column present in the CSV "
-          f"({'yes' if has_predicted else 'no'} 'predicted'/'prob' column found).")
+    print(
+        "  * No predicted-class column present in the CSV "
+        f"({'yes' if has_predicted else 'no'} 'predicted'/'prob' column found)."
+    )
     print("  * We cannot distinguish 'confidence in the true label' from")
     print("    'confidence in the predicted label' from the data alone.")
     print("  * ASSUMPTION for curation: confidence_score = detector confidence")
@@ -95,7 +106,10 @@ def main() -> None:
     print("---- other confounds with label ----")
     print("  source  :", dict(Counter((r["label"], r["source"]) for r in rows)))
     print("  resolution:", dict(Counter((r["label"], r["resolution"]) for r in rows)))
-    print("  image_quality:", dict(Counter((r["label"], r["image_quality"]) for r in rows)))
+    print(
+        "  image_quality:",
+        dict(Counter((r["label"], r["image_quality"]) for r in rows)),
+    )
     print()
 
     # re-derived difficulty preview
@@ -113,10 +127,15 @@ def main() -> None:
     print("---- confidence ranges of each derived tertile ----")
     for lab in common.LABELS:
         for d in common.DIFFICULTIES:
-            vals = sorted(float(r["confidence_score"]) for r in rows
-                          if common.cell_key(r, difficulty_of) == (lab, d))
+            vals = sorted(
+                float(r["confidence_score"])
+                for r in rows
+                if common.cell_key(r, difficulty_of) == (lab, d)
+            )
             if vals:
-                print(f"  {lab} {d:7s} n={len(vals):<5} conf {min(vals):.2f}..{max(vals):.2f}")
+                print(
+                    f"  {lab} {d:7s} n={len(vals):<5} conf {min(vals):.2f}..{max(vals):.2f}"
+                )
     print()
 
     # duplicates

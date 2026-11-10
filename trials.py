@@ -1,4 +1,5 @@
 """Trial-list loading and validation."""
+
 import csv
 import os
 
@@ -35,8 +36,7 @@ def load_and_verify_trials(csv_path):
         raise StimulusError(f"Trial file '{csv_path}' contains no trial data.")
 
     if missing_files:
-        details = "\n".join(
-            f"  Row {row}: {path}" for row, path in missing_files[:5])
+        details = "\n".join(f"  Row {row}: {path}" for row, path in missing_files[:5])
         if len(missing_files) > 5:
             details += f"\n  ... and {len(missing_files) - 5} more."
         raise StimulusError(

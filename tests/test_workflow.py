@@ -1,4 +1,5 @@
 """Regressions found during the simplicity and correctness review."""
+
 import contextlib
 import csv
 import io
@@ -25,15 +26,29 @@ class WorkflowTests(unittest.TestCase):
         data = root / "data" / "test" if test else root / "data"
         data.mkdir(parents=True, exist_ok=True)
         base = data / name
-        metadata = dict(status="complete", participant={"participant": "SYNTHETIC"},
-                        project_root=str(root), stimuli_sha256={"face.png": sha256(image)},
-                        planned_trials=[{"stimulus": "face.png"}], practice=[{"stimulus": "practice.png"}])
+        metadata = dict(
+            status="complete",
+            participant={"participant": "SYNTHETIC"},
+            project_root=str(root),
+            stimuli_sha256={"face.png": sha256(image)},
+            planned_trials=[{"stimulus": "face.png"}],
+            practice=[{"stimulus": "practice.png"}],
+        )
         Path(str(base) + "_session.json").write_text(json.dumps(metadata))
         events = [frame(), {"kind": "offset", "trigger": 1, "timestamp_ns": 1250000000}]
-        Path(str(base) + "_display.jsonl").write_text("\n".join(map(json.dumps, events)))
+        Path(str(base) + "_display.jsonl").write_text(
+            "\n".join(map(json.dumps, events))
+        )
         with Path(str(base) + "_gaze_raw.csv").open("w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["timestamp", "status", "calibrated_gaze_position_x", "calibrated_gaze_position_y"])
+            writer.writerow(
+                [
+                    "timestamp",
+                    "status",
+                    "calibrated_gaze_position_x",
+                    "calibrated_gaze_position_y",
+                ]
+            )
             writer.writerows((1000000000 + i * 50000000, 1, 640, 360) for i in range(5))
         return base, image
 
@@ -42,9 +57,18 @@ class WorkflowTests(unittest.TestCase):
         directory.mkdir(parents=True)
         mask = directory / "mask.png"
         Image.new("L", (1000, 1000), 2).save(mask)
-        manifest = {"labels": {"2": "nose"}, "stimuli": {
-            sha256(image): dict(stimulus=str(image), mask="mask.png", reviewed=reviewed,
-                                reviewed_mask_sha256=sha256(mask), notes=[])}}
+        manifest = {
+            "labels": {"2": "nose"},
+            "stimuli": {
+                sha256(image): dict(
+                    stimulus=str(image),
+                    mask="mask.png",
+                    reviewed=reviewed,
+                    reviewed_mask_sha256=sha256(mask),
+                    notes=[],
+                )
+            },
+        }
         (directory / "manifest.json").write_text(json.dumps(manifest))
         return directory, mask
 
@@ -53,16 +77,30 @@ class WorkflowTests(unittest.TestCase):
             root = Path(tmp)
             base, image = self.session(root)
             self.session(root, "newer_test", test=True)
-            with patch.object(analyse, "ROOT", root), contextlib.redirect_stdout(io.StringIO()):
+            with patch.object(analyse, "ROOT", root), contextlib.redirect_stdout(
+                io.StringIO()
+            ):
                 analyse.main(["--no-open", "--no-plots"])
                 analyse.main(["--no-open", "--no-plots"])
             self.assertTrue((root / "processed/session/index.html").is_file())
-            self.assertTrue((root / "processed/session_2/data_results/features.csv").is_file())
+            self.assertTrue(
+                (root / "processed/session_2/data_results/features.csv").is_file()
+            )
             self.assertFalse((root / "processed/newer_test").exists())
             output = root / "processed/session"
-            expected = {"features.csv", "samples.csv", "fixations.csv", "aoi_dwell.csv", "transitions.csv",
-                        "scanpaths.csv", "quality.csv", "link_decisions.csv"}
-            self.assertEqual({p.name for p in (output / "data_results").glob("*.csv")}, expected)
+            expected = {
+                "features.csv",
+                "samples.csv",
+                "fixations.csv",
+                "aoi_dwell.csv",
+                "transitions.csv",
+                "scanpaths.csv",
+                "quality.csv",
+                "link_decisions.csv",
+            }
+            self.assertEqual(
+                {p.name for p in (output / "data_results").glob("*.csv")}, expected
+            )
             self.assertEqual(list(output.glob("*.csv")), [])
             report = (output / "index.html").read_text(encoding="utf-8")
             self.assertIn("Recording quality", report)
@@ -70,17 +108,33 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn("no additional interval limit", report)
             for name in expected:
                 self.assertIn('href="data_results/' + name + '"', report)
-            with (root / "processed/session/data_results/features.csv").open(newline="") as f:
+            with (root / "processed/session/data_results/features.csv").open(
+                newline=""
+            ) as f:
                 self.assertEqual(next(csv.DictReader(f))["fixation_count"], "1")
 
     def test_short_command_records_independent_thresholds(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.session(root)
-            with patch.object(analyse, "ROOT", root), contextlib.redirect_stdout(io.StringIO()):
-                analyse.main(["--no-open", "--no-plots", "--sample-max-gap-ms", "120",
-                              "--link-max-gap-ms", "100", "--min-duration-ms", "150"])
-            settings = json.loads((root / "processed/session/analysis.json").read_text())
+            with patch.object(analyse, "ROOT", root), contextlib.redirect_stdout(
+                io.StringIO()
+            ):
+                analyse.main(
+                    [
+                        "--no-open",
+                        "--no-plots",
+                        "--sample-max-gap-ms",
+                        "120",
+                        "--link-max-gap-ms",
+                        "100",
+                        "--min-duration-ms",
+                        "150",
+                    ]
+                )
+            settings = json.loads(
+                (root / "processed/session/analysis.json").read_text()
+            )
             self.assertEqual(settings["sample_max_gap_ms"], 120)
             self.assertEqual(settings["link_max_gap_ms"], 100)
             self.assertEqual(settings["min_duration_ms"], 150)
@@ -99,7 +153,9 @@ class WorkflowTests(unittest.TestCase):
             root = Path(tmp)
             _, image = self.session(root)
             directory, mask = self.manifest(root, image, reviewed=False)
-            with patch("builtins.input", return_value="reviewed"), contextlib.redirect_stdout(io.StringIO()):
+            with patch(
+                "builtins.input", return_value="reviewed"
+            ), contextlib.redirect_stdout(io.StringIO()):
                 analyse.review_aois(directory, open_report=False)
             manifest = json.loads((directory / "manifest.json").read_text())
             record = manifest["stimuli"][sha256(image)]
@@ -132,7 +188,7 @@ class WorkflowTests(unittest.TestCase):
             with self.assertWarnsRegex(RuntimeWarning, "incomplete final"):
                 events = load_display(path)
             self.assertEqual(len(events), 1)
-            path.write_text('{invalid}\n' + json.dumps(frame()))
+            path.write_text("{invalid}\n" + json.dumps(frame()))
             with self.assertRaisesRegex(ValueError, "line 1"):
                 load_display(path)
 
@@ -140,8 +196,10 @@ class WorkflowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.session(root)
-            self.assertEqual(analyse.stimulus_paths(root / "data"),
-                             [root / "face.png", root / "practice.png"])
+            self.assertEqual(
+                analyse.stimulus_paths(root / "data"),
+                [root / "face.png", root / "practice.png"],
+            )
 
     def test_running_session_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -164,11 +222,20 @@ class WorkflowTests(unittest.TestCase):
             (model / "config.json").write_text("{}")
             path = directory / "manifest.json"
             manifest = json.loads(path.read_text())
-            manifest.update(model_files={"config.json": sha256(model / "config.json")}, min_confidence=0.6)
+            manifest.update(
+                model_files={"config.json": sha256(model / "config.json")},
+                min_confidence=0.6,
+            )
             path.write_text(json.dumps(manifest))
             original_manifest, original_mask = path.read_bytes(), mask.read_bytes()
-            fake_transformers = types.SimpleNamespace(SegformerImageProcessor=None, SegformerForSemanticSegmentation=None)
-            with patch.dict("sys.modules", torch=types.SimpleNamespace(), transformers=fake_transformers), contextlib.redirect_stdout(io.StringIO()):
+            fake_transformers = types.SimpleNamespace(
+                SegformerImageProcessor=None, SegformerForSemanticSegmentation=None
+            )
+            with patch.dict(
+                "sys.modules",
+                torch=types.SimpleNamespace(),
+                transformers=fake_transformers,
+            ), contextlib.redirect_stdout(io.StringIO()):
                 generate([image], model, directory)
             self.assertEqual(path.read_bytes(), original_manifest)
             self.assertEqual(mask.read_bytes(), original_mask)

@@ -1,4 +1,5 @@
 """Versioned, append-only display history and atomic session metadata."""
+
 import hashlib
 import importlib.metadata
 import json
@@ -10,7 +11,9 @@ import time
 
 
 class SessionLog:
-    def __init__(self, base_name, info, win_size, tracker_size, config, trials, practice):
+    def __init__(
+        self, base_name, info, win_size, tracker_size, config, trials, practice
+    ):
         self.path = Path(base_name + "_session.json")
         versions = {}
         for package in ("psychopy", "numpy", "Pillow", "pygame", "opencv-python"):
@@ -22,21 +25,34 @@ class SessionLog:
         for trial in trials + practice:
             p = Path(trial["stimulus"])
             stimuli[str(p)] = hashlib.sha256(p.read_bytes()).hexdigest()
-        self.metadata = dict(schema_version=1, participant=info, status="running",
-                             started_ns=time.time_ns(), python=platform.python_version(),
-                             project_root=str(Path.cwd()),
-                             versions=versions, window_size=list(map(int, win_size)),
-                             tracker_size=list(map(int, tracker_size)), config=config,
-                             stimuli_sha256=stimuli, planned_trials=trials, practice=practice,
-                             clock="epoch_ns; webcam timestamp after camera read, not measured exposure",
-                             coordinates="original image pixels, top-left origin; +x right, +y down")
+        self.metadata = dict(
+            schema_version=1,
+            participant=info,
+            status="running",
+            started_ns=time.time_ns(),
+            python=platform.python_version(),
+            project_root=str(Path.cwd()),
+            versions=versions,
+            window_size=list(map(int, win_size)),
+            tracker_size=list(map(int, tracker_size)),
+            config=config,
+            stimuli_sha256=stimuli,
+            planned_trials=trials,
+            practice=practice,
+            clock="epoch_ns; webcam timestamp after camera read, not measured exposure",
+            coordinates="original image pixels, top-left origin; +x right, +y down",
+        )
         self.save()
-        self.events = open(base_name + "_display.jsonl", "x", encoding="utf-8", buffering=1)
+        self.events = open(
+            base_name + "_display.jsonl", "x", encoding="utf-8", buffering=1
+        )
         self.window_size = tuple(map(int, win_size))
         self.tracker_size = tuple(map(int, tracker_size))
         self._pending = queue.SimpleQueue()
         self._write_error = None
-        self._writer = threading.Thread(target=self._write_events, name="display-log", daemon=True)
+        self._writer = threading.Thread(
+            target=self._write_events, name="display-log", daemon=True
+        )
         self._writer.start()
 
     def _write_events(self):
@@ -68,14 +84,25 @@ class SessionLog:
         temp.replace(self.path)
 
     def present(self, frame):
-        row = dict(frame, kind="present",
-                   window_width=self.window_size[0], window_height=self.window_size[1],
-                   tracker_width=self.tracker_size[0], tracker_height=self.tracker_size[1])
+        row = dict(
+            frame,
+            kind="present",
+            window_width=self.window_size[0],
+            window_height=self.window_size[1],
+            tracker_width=self.tracker_size[0],
+            tracker_height=self.tracker_size[1],
+        )
         self._pending.put(row)
 
     def end_view(self, trigger, interrupted=False, timestamp_ns=None):
-        self._pending.put(dict(kind="offset", timestamp_ns=timestamp_ns or time.time_ns(),
-                               trigger=trigger, interrupted=interrupted))
+        self._pending.put(
+            dict(
+                kind="offset",
+                timestamp_ns=timestamp_ns or time.time_ns(),
+                trigger=trigger,
+                interrupted=interrupted,
+            )
+        )
 
     def finish(self, status):
         try:
@@ -91,9 +118,18 @@ class SessionLog:
 def export_image_gaze(base_name):
     """Write a convenient, SDK-independent image-coordinate CSV at shutdown."""
     from analysis.ingest import align_samples, load_display, write_csv
+
     events = load_display(base_name + "_display.jsonl")
     from itertools import chain
+
     rows = iter(align_samples(base_name + "_gaze_raw.csv", events))
     first = next(rows, None)
-    write_csv(base_name + "_gaze_image.csv", chain([first], rows) if first else (),
-              list(first) if first else ["timestamp", "trigger", "image_x", "image_y", "usable"])
+    write_csv(
+        base_name + "_gaze_image.csv",
+        chain([first], rows) if first else (),
+        (
+            list(first)
+            if first
+            else ["timestamp", "trigger", "image_x", "image_y", "usable"]
+        ),
+    )

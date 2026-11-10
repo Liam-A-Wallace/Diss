@@ -17,15 +17,20 @@ import statistics
 import sys
 import time
 
-
 # Use the local SDK checkout and its model files.
 _WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _GAZEFOLLOWER_DIR = os.path.join(_WORKSPACE_ROOT, "GazeFollower")
 if _GAZEFOLLOWER_DIR not in sys.path:
     sys.path.insert(0, _GAZEFOLLOWER_DIR)
 
-from config import (CALIBRATION_POINTS, CAMERA_EXPOSURE, ENABLE_FACE_FILTER,
-                    GAZE_FILTER, GAZE_MODEL, LOCK_CAMERA_EXPOSURE)
+from config import (
+    CALIBRATION_POINTS,
+    CAMERA_EXPOSURE,
+    ENABLE_FACE_FILTER,
+    GAZE_FILTER,
+    GAZE_MODEL,
+    LOCK_CAMERA_EXPOSURE,
+)
 from gazefollower import GazeFollower
 from gazefollower.camera import WebCamCamera
 from gazefollower.filter import HeuristicFilter, OneEuroFilter
@@ -33,12 +38,16 @@ from gazefollower.gaze_estimator import MGazeNetGazeEstimator
 from gazefollower.misc import DefaultConfig
 
 import gazefollower_patch
+
 gazefollower_patch.apply()
 import sdk_rendering
+
 sdk_rendering.apply()
 
 # Resolve the model path without replacing SDK files.
-_GAZE_MODEL_DIR = os.path.join(_GAZEFOLLOWER_DIR, "gazefollower", "res", "model_weights")
+_GAZE_MODEL_DIR = os.path.join(
+    _GAZEFOLLOWER_DIR, "gazefollower", "res", "model_weights"
+)
 
 
 def _resolve_gaze_model(model):
@@ -54,6 +63,7 @@ def _resolve_gaze_model(model):
         return model
     return os.path.join(_GAZE_MODEL_DIR, model)
 
+
 # The worker appends rows with no header, so this is pre-written to its temp
 # sample file before sampling starts.
 SAMPLE_HEADER = (
@@ -64,8 +74,15 @@ SAMPLE_HEADER = (
     "tracking_status,status,event,trigger\n"
 )
 
-WINDOW_FIELDS = ["trial", "trigger", "is_practice", "condition", "stimulus",
-                 "onset_ns", "offset_ns"]
+WINDOW_FIELDS = [
+    "trial",
+    "trigger",
+    "is_practice",
+    "condition",
+    "stimulus",
+    "onset_ns",
+    "offset_ns",
+]
 
 # column index of the per-sample "status" flag in SAMPLE_HEADER
 _STATUS_COL = 10
@@ -123,8 +140,8 @@ def trim_gaze_file(raw_path, windows, out_path):
 class GazeRecorder:
     def __init__(self, camera_index=0):
         self.camera_index = camera_index
-        self.output_path = None   # trimmed, image-window-only gaze
-        self.raw_path = None      # everything sampled this session
+        self.output_path = None  # trimmed, image-window-only gaze
+        self.raw_path = None  # everything sampled this session
         self.windows_path = None  # per-trial onset/offset sidecar
         self.tracker = None
         self._windows = []
@@ -151,8 +168,13 @@ class GazeRecorder:
         model_path = _resolve_gaze_model(GAZE_MODEL)
         if cfg.use_multiprocessing:
             from gaze_worker import configure_worker
+
             configure_worker(model_path, LOCK_CAMERA_EXPOSURE, CAMERA_EXPOSURE)
-        estimator = None if cfg.use_multiprocessing else MGazeNetGazeEstimator(model_path=model_path)
+        estimator = (
+            None
+            if cfg.use_multiprocessing
+            else MGazeNetGazeEstimator(model_path=model_path)
+        )
         self.tracker = GazeFollower(
             camera=WebCamCamera(
                 webcam_id=self.camera_index,
@@ -161,9 +183,10 @@ class GazeRecorder:
             ),
             gaze_filter=gaze_filter,
             gaze_estimator=estimator,
-            config=cfg, use_multiprocessing=cfg.use_multiprocessing)
-        self.screen_size = tuple(
-            int(v) for v in self.tracker.config.screen_size)
+            config=cfg,
+            use_multiprocessing=cfg.use_multiprocessing,
+        )
+        self.screen_size = tuple(int(v) for v in self.tracker.config.screen_size)
         self._write_sample_header()
 
     def set_output(self, base_name):
@@ -175,6 +198,7 @@ class GazeRecorder:
         """Warm the first preview without blocking the Welcome screen."""
         if self._prepared_preview is None and hasattr(self.tracker, "config_dict"):
             from gaze_preview import PreparedPreview
+
             self._prepared_preview = PreparedPreview(self.tracker, win)
 
     def preview_ready(self):
@@ -186,6 +210,7 @@ class GazeRecorder:
             return
         from calibration_check import check_image
         import overlay
+
         was_sampling = self._sampling
         units, colour = win.units, win.color
         overlay.hide()
@@ -198,7 +223,10 @@ class GazeRecorder:
                 try:
                     if preview:
                         if self._prepared_preview is not None:
-                            prepared, self._prepared_preview = self._prepared_preview, None
+                            prepared, self._prepared_preview = (
+                                self._prepared_preview,
+                                None,
+                            )
                             prepared.show()
                         else:
                             self.tracker.preview(win=win)
@@ -287,18 +315,22 @@ class GazeRecorder:
             return None
         cx, cy = self.screen_size[0] / 2, self.screen_size[1] / 2
         cutoff = time.monotonic() - window_s
-        dists = [math.hypot(x - cx, y - cy)
-                 for t, x, y in self._recent if t >= cutoff]
+        dists = [math.hypot(x - cx, y - cy) for t, x, y in self._recent if t >= cutoff]
         if len(dists) < 3:
             return None
         return statistics.median(dists)
 
-    def record_window(self, trial, trigger, is_practice, condition, stimulus,
-                      onset_ns, offset_ns):
+    def record_window(
+        self, trial, trigger, is_practice, condition, stimulus, onset_ns, offset_ns
+    ):
         row = {
-            "trial": trial, "trigger": trigger,
-            "is_practice": int(is_practice), "condition": condition,
-            "stimulus": stimulus, "onset_ns": onset_ns, "offset_ns": offset_ns,
+            "trial": trial,
+            "trigger": trigger,
+            "is_practice": int(is_practice),
+            "condition": condition,
+            "stimulus": stimulus,
+            "onset_ns": onset_ns,
+            "offset_ns": offset_ns,
         }
         self._windows.append(row)
         if not self.windows_path:
@@ -366,18 +398,17 @@ class GazeRecorder:
             # stop first so the file is never copied while still being written
             self.stop_sampling()
             if self.raw_path:
-                os.makedirs(os.path.dirname(self.raw_path) or ".",
-                            exist_ok=True)
+                os.makedirs(os.path.dirname(self.raw_path) or ".", exist_ok=True)
                 self.tracker.save_data(self.raw_path)
                 print(f"[GazeFollower] Raw gaze data saved to {self.raw_path}")
                 if self._windows and os.path.exists(self.raw_path):
-                    n = trim_gaze_file(self.raw_path, self._windows,
-                                       self.output_path)
-                    print(f"[GazeFollower] {n} image-window samples "
-                          f"saved to {self.output_path}")
+                    n = trim_gaze_file(self.raw_path, self._windows, self.output_path)
+                    print(
+                        f"[GazeFollower] {n} image-window samples "
+                        f"saved to {self.output_path}"
+                    )
         except Exception as err:
-            print(f"[GazeFollower] saving gaze data failed: {err}",
-                  file=sys.stderr)
+            print(f"[GazeFollower] saving gaze data failed: {err}", file=sys.stderr)
         finally:
             self.tracker.release()
             self.tracker = None

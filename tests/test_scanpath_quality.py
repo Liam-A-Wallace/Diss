@@ -1,4 +1,5 @@
 """Separate sample continuity, fixation linking and descriptive data quality."""
+
 import unittest
 
 from analysis.fixations import detect_fixations
@@ -7,16 +8,42 @@ from analysis.scanpaths import link_decisions, scanpath
 
 
 def fixation(number, start, segment=0, frame=0, x=0.5):
-    return dict(fixation=number, start_ms=start, end_ms=start + 100, duration_ms=100,
-                segment=segment, frame_index=frame, image_u=x, image_v=0.5)
+    return dict(
+        fixation=number,
+        start_ms=start,
+        end_ms=start + 100,
+        duration_ms=100,
+        segment=segment,
+        frame_index=frame,
+        image_u=x,
+        image_v=0.5,
+    )
 
 
 class ScanpathQualityTests(unittest.TestCase):
     def test_long_continuously_observed_interval_can_be_linked(self):
-        rows = [dict(t_rel_ms=t, image_u=x, image_v=0.5, image_x=x * 1000,
-                     image_y=500, usable=1, frame_index=0)
-                for t, x in ((0, .2), (50, .2), (100, .2), (150, .4), (200, .6),
-                             (250, .7), (300, .8), (350, .8), (400, .8))]
+        rows = [
+            dict(
+                t_rel_ms=t,
+                image_u=x,
+                image_v=0.5,
+                image_x=x * 1000,
+                image_y=500,
+                usable=1,
+                frame_index=0,
+            )
+            for t, x in (
+                (0, 0.2),
+                (50, 0.2),
+                (100, 0.2),
+                (150, 0.4),
+                (200, 0.6),
+                (250, 0.7),
+                (300, 0.8),
+                (350, 0.8),
+                (400, 0.8),
+            )
+        ]
         events = detect_fixations(rows, max_gap_ms=100)
         self.assertEqual(len(events), 2)
         # The sample-gap rule is unchanged; only the independent link rule changes.
@@ -27,11 +54,16 @@ class ScanpathQualityTests(unittest.TestCase):
         self.assertEqual(strict[0]["accepted"], 0)
 
     def test_unlimited_link_interval_never_bridges_missing_data_or_views(self):
-        events = [fixation(1, 0), fixation(2, 150, segment=1),
-                  fixation(3, 300, segment=2, frame=1)]
+        events = [
+            fixation(1, 0),
+            fixation(2, 150, segment=1),
+            fixation(3, 300, segment=2, frame=1),
+        ]
         decisions = link_decisions(events, max_gap_ms=None)
         self.assertEqual([d["accepted"] for d in decisions], [0, 0])
-        self.assertEqual([d["reason"] for d in decisions], ["segment_break", "view_change"])
+        self.assertEqual(
+            [d["reason"] for d in decisions], ["segment_break", "view_change"]
+        )
         summary, steps = scanpath(events, None, decisions)
         self.assertEqual(steps, [])
         self.assertEqual(summary["scanpath_rejected_count"], 2)
@@ -55,8 +87,10 @@ class ScanpathQualityTests(unittest.TestCase):
                 link_decisions([], value)
 
     def test_quality_detects_silent_gaps_despite_valid_sample_flags(self):
-        rows = [dict(t_rel_ms=t, valid=1, usable=1, duplicate=0, on_image=1)
-                for t in (0, 70, 140, 500)]
+        rows = [
+            dict(t_rel_ms=t, valid=1, usable=1, duplicate=0, on_image=1)
+            for t in (0, 70, 140, 500)
+        ]
         quality = recording_quality(rows, view_ms=1000)
         self.assertEqual(quality["saved_sample_hz"], 4)
         self.assertEqual(quality["valid_sample_hz"], 4)
@@ -67,9 +101,11 @@ class ScanpathQualityTests(unittest.TestCase):
         self.assertIn("100 ms", quality["quality_notes"])
 
     def test_quality_keeps_off_image_gaze_separate_from_invalid_samples(self):
-        rows = [dict(t_rel_ms=0, valid=1, usable=0, duplicate=0, on_image=0),
-                dict(t_rel_ms=50, valid=1, usable=1, duplicate=0, on_image=1),
-                dict(t_rel_ms=50, valid=0, usable=0, duplicate=1, on_image=1)]
+        rows = [
+            dict(t_rel_ms=0, valid=1, usable=0, duplicate=0, on_image=0),
+            dict(t_rel_ms=50, valid=1, usable=1, duplicate=0, on_image=1),
+            dict(t_rel_ms=50, valid=0, usable=0, duplicate=1, on_image=1),
+        ]
         quality = recording_quality(rows, 100)
         self.assertEqual(quality["saved_sample_hz"], 20)
         self.assertEqual(quality["duplicate_sample_count"], 1)

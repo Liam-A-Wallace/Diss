@@ -7,12 +7,18 @@ WELCOME = dict(
         "of real people; others are AI-generated."
     ),
     steps=[
-        ("Look at the face",
-         "Take your time. Scroll to zoom, drag to move, and press HOME to reset."),
-        ("Make your decision",
-         "Press ENTER when you are ready, then click REAL or FAKE."),
-        ("Rate your confidence",
-         "Click a number from 1 (guessing) to 5 (very sure). Then optionally type your reasons and click CONTINUE."),
+        (
+            "Look at the face",
+            "Take your time. Scroll to zoom, drag to move, and press HOME to reset.",
+        ),
+        (
+            "Make your decision",
+            "Press ENTER when you are ready, then click REAL or FAKE.",
+        ),
+        (
+            "Rate your confidence",
+            "Click a number from 1 (guessing) to 5 (very sure). Then optionally type your reasons and click CONTINUE.",
+        ),
     ],
 )
 
@@ -50,8 +56,7 @@ BREAK = dict(
 THANKS = dict(
     title="Thank you",
     body=(
-        "You have completed the task.\n\nYour participation "
-        "is greatly appreciated."
+        "You have completed the task.\n\nYour participation " "is greatly appreciated."
     ),
     footer="Press ENTER or SPACE to finish",
 )

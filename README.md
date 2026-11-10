@@ -69,6 +69,12 @@ run `python analyse.py --detailed --test` for analysis. This version preserves
 separate eyes, eyebrows, ears and lip components and adds approximate under-eye,
 cheek, forehead and chin regions. See [detailed AOI definitions](docs/DETAILED_AOIS.md).
 
+For manual landmark and feature-mask correction, run
+`python analyse.py edit --detailed --test`. Choose any feature in the editor's
+Edit selector to drag its contour handles, then save and run
+`python analyse.py review --manual --test`. Use `python analyse.py --manual --test`
+for gaze analysis with those corrections. See the [editor controls](docs/DETAILED_AOIS.md#manually-correct-individual-landmarks-and-features).
+
 Facial AOI generation also needs
 `python -m pip install -r requirements-aois.txt`. Follow the setup guides for
 the local GazeFollower dependencies and webcam configuration.

@@ -1,4 +1,5 @@
 """Generate placeholder faces + trials.csv until a real dataset is chosen."""
+
 import csv
 import os
 
@@ -48,14 +49,12 @@ def _face_image(label, skin, artifact=None, light=True):
                     px[x + dx, y] = row
 
     draw = ImageDraw.Draw(img)
-    draw.ellipse([156, 96, 356, 396], fill=skin,
-                 outline=outline, width=4)
+    draw.ellipse([156, 96, 356, 396], fill=skin, outline=outline, width=4)
     draw.ellipse([206, 176, 236, 206], fill=(40, 40, 40))
     draw.ellipse([276, 176, 306, 206], fill=(40, 40, 40))
     draw.line([256, 220, 248, 260], fill=(120, 90, 80), width=4)
     draw.line([248, 260, 258, 262], fill=(120, 90, 80), width=4)
-    draw.arc([220, 270, 292, 322], start=20, end=160,
-             fill=(80, 40, 40), width=5)
+    draw.arc([220, 270, 292, 322], start=20, end=160, fill=(80, 40, 40), width=5)
 
     # blur a patch of the face to stand in for an AI artefact
     if artifact:
@@ -83,11 +82,15 @@ def generate(csv_path="trials.csv"):
     for i in range(1, N_REAL + 1):
         name = f"real_{i:03d}.png"
         path = os.path.join(STIM_DIR, "real", name)
-        _face_image(f"REAL {i:03d}", skin=(210, 165, 140),
-                    light=light).save(path)
-        rows.append({"stimulus": path, "condition": "real",
-                     "difficulty": "na",
-                     "background": "light" if light else "dark"})
+        _face_image(f"REAL {i:03d}", skin=(210, 165, 140), light=light).save(path)
+        rows.append(
+            {
+                "stimulus": path,
+                "condition": "real",
+                "difficulty": "na",
+                "background": "light" if light else "dark",
+            }
+        )
         light = not light
 
     # more visible blur = easier to spot
@@ -102,18 +105,27 @@ def generate(csv_path="trials.csv"):
         for _ in range(FAKES_PER_DIFFICULTY):
             name = f"fake_{idx:03d}.png"
             path = os.path.join(STIM_DIR, "fake", name)
-            _face_image(f"FAKE {idx:03d}", skin=(200, 155, 130),
-                        artifact=(box, radius), light=light).save(path)
-            rows.append({"stimulus": path, "condition": "fake",
-                         "difficulty": difficulty,
-                         "background": "light" if light else "dark"})
+            _face_image(
+                f"FAKE {idx:03d}",
+                skin=(200, 155, 130),
+                artifact=(box, radius),
+                light=light,
+            ).save(path)
+            rows.append(
+                {
+                    "stimulus": path,
+                    "condition": "fake",
+                    "difficulty": difficulty,
+                    "background": "light" if light else "dark",
+                }
+            )
             idx += 1
             light = not light
 
     with open(csv_path, "w", newline="") as f:
         writer = csv.DictWriter(
-            f, fieldnames=["stimulus", "condition", "difficulty",
-                           "background"])
+            f, fieldnames=["stimulus", "condition", "difficulty", "background"]
+        )
         writer.writeheader()
         writer.writerows(rows)
 
@@ -124,9 +136,11 @@ def main():
     # never overwrite the real trials.csv
     csv_path = generate("trials_placeholder.csv")
     n_fake = FAKES_PER_DIFFICULTY * len(DIFFICULTIES)
-    print(f"Created {N_REAL + n_fake} placeholder images (alternating "
-          f"light/dark) and wrote '{csv_path}' "
-          f"({N_REAL} real, {n_fake} fake).")
+    print(
+        f"Created {N_REAL + n_fake} placeholder images (alternating "
+        f"light/dark) and wrote '{csv_path}' "
+        f"({N_REAL} real, {n_fake} fake)."
+    )
 
 
 if __name__ == "__main__":

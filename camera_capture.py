@@ -1,4 +1,5 @@
 """Keep webcam capture draining while gaze inference processes the latest frame."""
+
 import threading
 import time
 
@@ -16,7 +17,9 @@ def stop_camera(camera, timeout=2.0):
     if worker is not None:
         worker.join(max(0.0, deadline - time.monotonic()))
         if worker.is_alive():
-            raise TimeoutError(f"Webcam capture did not stop within {timeout:g} seconds")
+            raise TimeoutError(
+                f"Webcam capture did not stop within {timeout:g} seconds"
+            )
     else:
         camera._cap.release()
     # Capture has released the webcam, but a callback may still own the model.
@@ -25,7 +28,9 @@ def stop_camera(camera, timeout=2.0):
     if processing is not None:
         processing.join(max(0.0, deadline - time.monotonic()))
         if processing.is_alive():
-            raise TimeoutError(f"Webcam processing did not stop within {timeout:g} seconds")
+            raise TimeoutError(
+                f"Webcam processing did not stop within {timeout:g} seconds"
+            )
 
 
 def capture_latest(camera):
@@ -55,9 +60,13 @@ def capture_latest(camera):
                 frame = cv2.resize(frame, (camera.img_width, camera.img_height))
                 with camera.callback_and_param_lock:
                     if camera.callback_func is not None:
-                        camera.callback_func(camera.camera_running_state, timestamp,
-                                             frame, *camera.callback_args,
-                                             **camera.callback_kwargs)
+                        camera.callback_func(
+                            camera.camera_running_state,
+                            timestamp,
+                            frame,
+                            *camera.callback_args,
+                            **camera.callback_kwargs,
+                        )
                 processed += 1
                 processing_ms = (time.monotonic() - started) * 1000
             except Exception as error:
@@ -77,10 +86,12 @@ def capture_latest(camera):
             now = time.monotonic()
             if now - report_at >= 5:
                 elapsed = now - report_at
-                Log.i(f"Camera throughput: capture={captured / elapsed:.1f} fps, "
-                      f"processing={processed / elapsed:.1f} fps, "
-                      f"last processing={processing_ms:.0f} ms, "
-                      f"frame age before processing={frame_age_ms:.0f} ms")
+                Log.i(
+                    f"Camera throughput: capture={captured / elapsed:.1f} fps, "
+                    f"processing={processed / elapsed:.1f} fps, "
+                    f"last processing={processing_ms:.0f} ms, "
+                    f"frame age before processing={frame_age_ms:.0f} ms"
+                )
                 captured = processed = 0
                 report_at = now
             # Preview must not wait for face/eye inference. This hook only

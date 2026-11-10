@@ -34,8 +34,15 @@ def apply():
     _upstream_init = _WebCamCamera.__init__
     _upstream_create_thread = _WebCamCamera._create_capture_thread
 
-    def __init__(self, webcam_id=0, img_height=480, img_width=640, cam_fps=30,
-                 lock_exposure=None, exposure=None):
+    def __init__(
+        self,
+        webcam_id=0,
+        img_height=480,
+        img_width=640,
+        cam_fps=30,
+        lock_exposure=None,
+        exposure=None,
+    ):
         if lock_exposure is None:
             lock_exposure = LOCK_CAMERA_EXPOSURE
         if exposure is None:
@@ -50,10 +57,12 @@ def apply():
             return _upstream_create_thread(self)
         import cv2
 
-        for prop, value in ((cv2.CAP_PROP_FRAME_WIDTH, self.img_width),
-                            (cv2.CAP_PROP_FRAME_HEIGHT, self.img_height),
-                            (cv2.CAP_PROP_FPS, self.cam_fps),
-                            (cv2.CAP_PROP_BUFFERSIZE, 1)):
+        for prop, value in (
+            (cv2.CAP_PROP_FRAME_WIDTH, self.img_width),
+            (cv2.CAP_PROP_FRAME_HEIGHT, self.img_height),
+            (cv2.CAP_PROP_FPS, self.cam_fps),
+            (cv2.CAP_PROP_BUFFERSIZE, 1),
+        ):
             self._cap.set(prop, value)
 
         # Windows backends use 0/1; V4L2 uses quarter-scale menu values.
@@ -64,8 +73,10 @@ def apply():
             set_exp = False
             if self.exposure is not None:
                 set_exp = self._cap.set(cv2.CAP_PROP_EXPOSURE, self.exposure)
-            Log.i(f"Camera exposure lock requested: auto_off={auto_off}, "
-                  f"exposure={self.exposure} set={set_exp}")
+            Log.i(
+                f"Camera exposure lock requested: auto_off={auto_off}, "
+                f"exposure={self.exposure} set={set_exp}"
+            )
         else:
             # Restore auto exposure because manual settings can persist in the
             # camera driver between runs, even after changing the config.
@@ -73,16 +84,21 @@ def apply():
             enabled = self._cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, auto_value)
             Log.i(f"Camera automatic exposure requested: set={enabled}")
             if not enabled:
-                Log.w("The webcam did not accept automatic exposure. "
-                      "Check its exposure setting in the camera controls.")
-        Log.i(f"Camera negotiated: {self._cap.get(cv2.CAP_PROP_FRAME_WIDTH)} x "
-              f"{self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT)} at "
-              f"{self._cap.get(cv2.CAP_PROP_FPS)} fps")
+                Log.w(
+                    "The webcam did not accept automatic exposure. "
+                    "Check its exposure setting in the camera controls."
+                )
+        Log.i(
+            f"Camera negotiated: {self._cap.get(cv2.CAP_PROP_FRAME_WIDTH)} x "
+            f"{self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT)} at "
+            f"{self._cap.get(cv2.CAP_PROP_FPS)} fps"
+        )
         return _upstream_create_thread(self)
 
     _WebCamCamera.__init__ = __init__
     _WebCamCamera._create_capture_thread = configure_capture
     from camera_capture import capture_latest, stop_camera
+
     _WebCamCamera.close = stop_camera
     _WebCamCamera.release = stop_camera
     _WebCamCamera.capture = capture_latest

@@ -25,16 +25,19 @@ import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-DISS_DIR = HERE.parent.parent                        # Diss/
+DISS_DIR = HERE.parent.parent  # Diss/
 PICKED_CSV = HERE.parent / "outputs" / "picked.csv"
-RAW_DATA_ROOT = Path(os.environ.get("RAW_DATA_ROOT") or HERE.parent.parent.parent / "Dataset")
+RAW_DATA_ROOT = Path(
+    os.environ.get("RAW_DATA_ROOT") or HERE.parent.parent.parent / "Dataset"
+)
 STIM_DIR = DISS_DIR / "stimuli"
 TRIALS_CSV = DISS_DIR / "trials.csv"
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Export picked stimuli to the Diss experiment.")
+        description="Export picked stimuli to the Diss experiment."
+    )
     parser.add_argument("--picked", default=str(PICKED_CSV))
     parser.add_argument("--diss", default=str(DISS_DIR))
     args = parser.parse_args(argv)
@@ -67,23 +70,33 @@ def main(argv: list[str] | None = None) -> int:
         destinations.add(key)
         plan.append((src, cond, fname))
     if errors:
-        raise SystemExit("[error] Export cancelled; existing files preserved:\n" + "\n".join(errors))
+        raise SystemExit(
+            "[error] Export cancelled; existing files preserved:\n" + "\n".join(errors)
+        )
     for cond in ("real", "fake"):
         if (diss_dir / "stimuli" / cond).is_symlink():
-            raise SystemExit("[error] Refusing to replace a symlinked stimulus directory")
+            raise SystemExit(
+                "[error] Refusing to replace a symlinked stimulus directory"
+            )
 
-    trial_rows = [dict(stimulus=f"stimuli/{cond}/{fname}", condition=cond, difficulty="")
-                  for _, cond, fname in plan]
+    trial_rows = [
+        dict(stimulus=f"stimuli/{cond}/{fname}", condition=cond, difficulty="")
+        for _, cond, fname in plan
+    ]
     diss_dir.mkdir(parents=True, exist_ok=True)
     # Stage every copy first; unreadable sources/copy errors preserve the old set.
-    with tempfile.TemporaryDirectory(prefix=".stimulus-export-", dir=diss_dir) as temporary:
+    with tempfile.TemporaryDirectory(
+        prefix=".stimulus-export-", dir=diss_dir
+    ) as temporary:
         stage = Path(temporary)
         for src, cond, fname in plan:
             (stage / cond).mkdir(exist_ok=True)
             shutil.copy2(src, stage / cond / fname)
         staged_csv = stage / "trials.csv"
         with staged_csv.open("w", encoding="utf-8", newline="") as target:
-            writer = csv.DictWriter(target, fieldnames=["stimulus", "condition", "difficulty"])
+            writer = csv.DictWriter(
+                target, fieldnames=["stimulus", "condition", "difficulty"]
+            )
             writer.writeheader()
             writer.writerows(trial_rows)
         for cond in ("real", "fake"):

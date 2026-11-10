@@ -1,11 +1,10 @@
 ﻿"""Configuration and shared constants for the experiment."""
 
-
-WIN_SIZE = (1920, 1080)   # native resolution of the experiment monitor
+WIN_SIZE = (1920, 1080)  # native resolution of the experiment monitor
 FULLSCREEN = True
-SCREEN = 0          # which monitor PsychoPy uses (0 = primary)
-SHOW_GAZE = False   # demo: draw the live gaze point on screen
-CAMERA_INDEX = 0   # which webcam GazeFollower opens
+SCREEN = 0  # which monitor PsychoPy uses (0 = primary)
+SHOW_GAZE = False  # demo: draw the live gaze point on screen
+CAMERA_INDEX = 0  # which webcam GazeFollower opens
 
 # Gaze model. GAZE_MODEL is a filename under GazeFollower's
 # res/model_weights/ folder (e.g. "base_32M.mnn"), or an absolute/relative
@@ -28,15 +27,15 @@ GAZE_FILTER = "one_euro"
 FONT = "Open Sans"
 
 # Palette (Soft Light / Paper Theme)
-BG = "#EFEFEF"          # Soft, low-glare off-white background
-PANEL = "#F7F7F7"       # Very light grey panel cards
+BG = "#EFEFEF"  # Soft, low-glare off-white background
+PANEL = "#F7F7F7"  # Very light grey panel cards
 PANEL_LINE = "#D6D6D6"  # Gentle grey borders
-TEXT = "#1E2022"       # Almost-black text
-MUTED = "#686D76"      # Muted slate text
-ACCENT = "#0066FF"     # Bright electric blue accent
-BTN_FILL = "#E4E4E4"   # Light neutral button background
+TEXT = "#1E2022"  # Almost-black text
+MUTED = "#686D76"  # Muted slate text
+ACCENT = "#0066FF"  # Bright electric blue accent
+BTN_FILL = "#E4E4E4"  # Light neutral button background
 BTN_HOVER = "#D0D0D0"  # Hover state
-BTN_LINE = "#CCCCCC"   # Button borders
+BTN_LINE = "#CCCCCC"  # Button borders
 
 # Timing (seconds)
 FIXATION_DURATION = 0.7
@@ -102,5 +101,3 @@ CONFIDENCE_LABELS = ["1", "2", "3", "4", "5"]
 
 # Image zoom relative to initial fit; original aspect ratio is preserved.
 MAX_ZOOM = 4.0
-
-

@@ -1,4 +1,5 @@
 """Avoid rebuilding SDK text and uploading unchanged preview frames each flip."""
+
 import time
 
 
@@ -15,6 +16,7 @@ def optimize_backend(backend_class):
         count += 1
         if now - started >= 5:
             from gazefollower.logger import Log
+
             Log.i(f"SDK display throughput: {count / (now - started):.1f} fps")
             started, count = now, 0
         self._diss_draw_rate = (started, count)
@@ -28,11 +30,19 @@ def optimize_backend(backend_class):
         colour = tuple(text_color)
         if entry is None:
             stim = self.visual.TextStim(
-                self.win, text=str(text), font=font_name, height=font_size,
-                color=colour, colorSpace="rgb255", units="pix",
-                pos=self.pixel_to_psychopy_coordinate(rect[0] + rect[2] // 2,
-                                                      rect[1] + rect[3] // 2),
-                alignText=align, autoLog=False)
+                self.win,
+                text=str(text),
+                font=font_name,
+                height=font_size,
+                color=colour,
+                colorSpace="rgb255",
+                units="pix",
+                pos=self.pixel_to_psychopy_coordinate(
+                    rect[0] + rect[2] // 2, rect[1] + rect[3] // 2
+                ),
+                alignText=align,
+                autoLog=False,
+            )
             cache[key] = (stim, str(text), colour)
         else:
             stim, previous, previous_colour = entry
@@ -73,4 +83,5 @@ def optimize_backend(backend_class):
 
 def apply():
     from gazefollower.ui.UIBackend import PsychoPyUIBackend
+
     optimize_backend(PsychoPyUIBackend)

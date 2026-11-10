@@ -1,10 +1,10 @@
 """Reusable drawing primitives for the experiment."""
+
 import math
 
 from psychopy import visual
 
-from config import (ACCENT, BTN_FILL, BTN_HOVER, BTN_LINE, FONT, PANEL,
-                    PANEL_LINE, TEXT)
+from config import ACCENT, BTN_FILL, BTN_HOVER, BTN_LINE, FONT, PANEL, PANEL_LINE, TEXT
 
 
 # Drawing helpers
@@ -27,8 +27,7 @@ def rounded_vertices(w, h, r, n=8):
     return pts
 
 
-def rounded_rect(win, size, pos, radius=0.02, fill=PANEL, line=None,
-                 line_width=2):
+def rounded_rect(win, size, pos, radius=0.02, fill=PANEL, line=None, line_width=2):
     # no outline passed means borderless, so reuse the fill colour
     return visual.ShapeStim(
         win,
@@ -42,8 +41,18 @@ def rounded_rect(win, size, pos, radius=0.02, fill=PANEL, line=None,
     )
 
 
-def text(win, txt, pos, height=0.04, color=TEXT, bold=False, wrap=1.0,
-         anchor_h="center", anchor_v="center", max_height=None):
+def text(
+    win,
+    txt,
+    pos,
+    height=0.04,
+    color=TEXT,
+    bold=False,
+    wrap=1.0,
+    anchor_h="center",
+    anchor_v="center",
+    max_height=None,
+):
     stim = visual.TextStim(
         win,
         text=txt,
@@ -74,8 +83,9 @@ def fit_text(stim, width, height):
         # setText(None) refreshes the existing text without drawing a frame.
         stim.setText(None, log=False)
         actual_w, actual_h = stim.boundingBox
-        scale = min(1.0, width * pixels / max(actual_w, 1),
-                    height * pixels / max(actual_h, 1))
+        scale = min(
+            1.0, width * pixels / max(actual_w, 1), height * pixels / max(actual_h, 1)
+        )
         if scale >= 1.0:
             break
         stim.height *= min(scale * 0.96, 0.95)
@@ -85,12 +95,16 @@ class Button:
     def __init__(self, win, label, pos, size, value, text_height=0.05):
         self.value = value
         self.shape = rounded_rect(
-            win, size, pos, radius=0.022,
-            fill=BTN_FILL, line=BTN_LINE
+            win, size, pos, radius=0.022, fill=BTN_FILL, line=BTN_LINE
         )
         self.label = text(
-            win, label, pos, height=text_height, bold=True,
-            wrap=size[0] - 0.04, max_height=size[1] - 0.02
+            win,
+            label,
+            pos,
+            height=text_height,
+            bold=True,
+            wrap=size[0] - 0.04,
+            max_height=size[1] - 0.02,
         )
 
     def contains(self, mouse_pos):
@@ -107,10 +121,18 @@ def make_fixation(win):
     a, t = 0.03, 0.004
     # a = arm length, t = half-thickness; the vertices trace a plus sign
     verts = [
-        (-t, a), (t, a), (t, t), (a, t),
-        (a, -t), (t, -t), (t, -a),
-        (-t, -a), (-t, -t), (-a, -t),
-        (-a, t), (-t, t),
+        (-t, a),
+        (t, a),
+        (t, t),
+        (a, t),
+        (a, -t),
+        (t, -t),
+        (t, -a),
+        (-t, -a),
+        (-t, -t),
+        (-a, -t),
+        (-a, t),
+        (-t, t),
     ]
     return visual.ShapeStim(
         win,

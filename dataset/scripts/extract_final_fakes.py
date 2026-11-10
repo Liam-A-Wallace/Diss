@@ -32,18 +32,34 @@ import requests
 HERE = Path(__file__).resolve().parent
 SOURCE_CSV = HERE.parent / "manifests" / "FINAL_DATASET.csv"
 OUT_CSV = HERE.parent / "manifests" / "final_fake_gendered.csv"
-RAW_DATA_ROOT = Path(os.environ.get("RAW_DATA_ROOT") or HERE.parent.parent.parent / "Dataset")
-REPO = RAW_DATA_ROOT.parent                        # root image_url paths are relative to
+RAW_DATA_ROOT = Path(
+    os.environ.get("RAW_DATA_ROOT") or HERE.parent.parent.parent / "Dataset"
+)
+REPO = RAW_DATA_ROOT.parent  # root image_url paths are relative to
 OUT_DIR = RAW_DATA_ROOT / "datasets" / "final_fake_gendered"
 
 _HEADERS = {"User-Agent": "Mozilla/5.0 (research dataset curation script)"}
 
 # Keep the same column order as FINAL_DATASET.csv plus ``source_dataset``.
 FIELDS = [
-    "image_id", "image_url", "label", "label_numeric", "category", "gender",
-    "age_group", "source", "fake_method", "image_quality", "resolution",
-    "confidence_score", "detection_difficulty", "dataset_split",
-    "date_collected", "version", "year", "source_dataset",
+    "image_id",
+    "image_url",
+    "label",
+    "label_numeric",
+    "category",
+    "gender",
+    "age_group",
+    "source",
+    "fake_method",
+    "image_quality",
+    "resolution",
+    "confidence_score",
+    "detection_difficulty",
+    "dataset_split",
+    "date_collected",
+    "version",
+    "year",
+    "source_dataset",
 ]
 
 
@@ -69,20 +85,27 @@ def _download(url: str, dest: Path, timeout: float = 20.0) -> bool:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Extract gender-labelled FAKE images from FINAL_DATASET.csv.")
+        description="Extract gender-labelled FAKE images from FINAL_DATASET.csv."
+    )
     parser.add_argument("--csv", default=str(SOURCE_CSV))
-    parser.add_argument("--gender", choices=["male", "female"],
-                        help="only this gender")
-    parser.add_argument("--all", action="store_true",
-                        help="include Unknown-gender avatars too")
+    parser.add_argument("--gender", choices=["male", "female"], help="only this gender")
+    parser.add_argument(
+        "--all", action="store_true", help="include Unknown-gender avatars too"
+    )
     parser.add_argument("--out", default=str(OUT_CSV))
     parser.add_argument("--out-dir", default=str(OUT_DIR))
-    parser.add_argument("--no-download", action="store_true",
-                        help="write the CSV but skip downloading images")
+    parser.add_argument(
+        "--no-download",
+        action="store_true",
+        help="write the CSV but skip downloading images",
+    )
     args = parser.parse_args(argv)
 
-    rows = [r for r in csv.DictReader(open(args.csv, encoding="utf-8-sig"))
-            if r["label"] == "FAKE"]
+    rows = [
+        r
+        for r in csv.DictReader(open(args.csv, encoding="utf-8-sig"))
+        if r["label"] == "FAKE"
+    ]
 
     out: list[dict] = []
     for r in rows:
@@ -123,7 +146,9 @@ def main(argv: list[str] | None = None) -> int:
         writer.writeheader()
         writer.writerows(out)
 
-    n_local = sum(1 for r in out if not r["image_url"].startswith(("http://", "https://")))
+    n_local = sum(
+        1 for r in out if not r["image_url"].startswith(("http://", "https://"))
+    )
     print(f"[saved] {len(out)} rows -> {out_path} ({n_local} local images)")
     if not args.no_download:
         print(f"[downloaded] -> {out_dir}")

@@ -45,6 +45,7 @@ try:
     import tkinter as tk
     from tkinter import messagebox
     from PIL import Image, ImageTk
+
     _HAS_TK = True
 except Exception:  # pragma: no cover - headless environments
     _HAS_TK = False
@@ -54,7 +55,7 @@ METADATA_CSV = HERE.parent / "metadata" / "image_metadata.csv"
 OUT_CSV = HERE.parent / "outputs" / "picked.csv"
 PICKED_DIR = common.RAW_DATA_ROOT / "datasets" / "picked"
 
-PER_LABEL = 25        # default: 25 REAL + 25 FAKE = 50
+PER_LABEL = 25  # default: 25 REAL + 25 FAKE = 50
 SEED = 2026
 
 # Cartoon/illustration avatar hosts in FINAL_DATASET.csv's fake set. These are
@@ -70,11 +71,16 @@ COLORS = {
     "text": "#1E2022",
     "muted": "#686D76",
     "accent": "#0066FF",
-    "real": "#1E8E3E", "real_bg": "#E6F4EA",
-    "fake": "#D93025", "fake_bg": "#FCE8E6",
-    "keep": "#1E8E3E", "keep_active": "#176B30",
-    "axe": "#D93025", "axe_active": "#A50E0E",
-    "undo": "#5F6368", "undo_active": "#3C4043",
+    "real": "#1E8E3E",
+    "real_bg": "#E6F4EA",
+    "fake": "#D93025",
+    "fake_bg": "#FCE8E6",
+    "keep": "#1E8E3E",
+    "keep_active": "#176B30",
+    "axe": "#D93025",
+    "axe_active": "#A50E0E",
+    "undo": "#5F6368",
+    "undo_active": "#3C4043",
 }
 
 
@@ -96,6 +102,8 @@ def build_pools(rows: list[dict], seed: int = SEED) -> dict[str, list[dict]]:
         rng.shuffle(pool)
         pools[label] = pool
     return pools
+
+
 # Output
 def _copy_image(row: dict, dest: Path) -> bool:
     """Copy a picked image to ``dest``.
@@ -127,8 +135,9 @@ def _picked_ext(row: dict) -> str:
     return ".jpg"
 
 
-def write_outputs(kept: dict[str, list[dict]], out_csv: Path, copy_dir: Path,
-                  copy_images: bool = True) -> None:
+def write_outputs(
+    kept: dict[str, list[dict]], out_csv: Path, copy_dir: Path, copy_images: bool = True
+) -> None:
     """Write picked.csv and copy the kept images into copy_dir/{real,fake}/."""
     order = []
     for label in common.LABELS:
@@ -168,8 +177,13 @@ def write_outputs(kept: dict[str, list[dict]], out_csv: Path, copy_dir: Path,
         print(f"[copied] images -> {copy_dir}")
 
 
-def merge_outputs(kept_new: dict[str, list[dict]], existing_rows: list[dict],
-                  out_csv: Path, copy_dir: Path, copy_images: bool = True) -> None:
+def merge_outputs(
+    kept_new: dict[str, list[dict]],
+    existing_rows: list[dict],
+    out_csv: Path,
+    copy_dir: Path,
+    copy_images: bool = True,
+) -> None:
     """Append newly kept rows to an existing picked CSV.
 
     Existing rows keep their ``picked_file`` values untouched; new rows are
@@ -211,20 +225,30 @@ def merge_outputs(kept_new: dict[str, list[dict]], existing_rows: list[dict],
         writer.writeheader()
         writer.writerows(combined)
 
-    print(f"[saved] {len(combined)} rows -> {out_csv} "
-          f"({len(existing)} existing + {len(new_rows)} new)")
+    print(
+        f"[saved] {len(combined)} rows -> {out_csv} "
+        f"({len(existing)} existing + {len(new_rows)} new)"
+    )
     print(f"        real: {counters.get('real', 0)}  fake: {counters.get('fake', 0)}")
     if copy_images and new_rows:
         print(f"[copied] {len(new_rows)} new images -> {copy_dir}")
+
+
 # Review GUI
 class ReviewApp:
-    DISPLAY = (900, 900)   # fallback box when the label hasn't been laid out yet
+    DISPLAY = (900, 900)  # fallback box when the label hasn't been laid out yet
 
-    def __init__(self, root: tk.Tk, pools: dict[str, list[dict]],
-                 targets: dict[str, int], meta: dict[str, dict],
-                 copy_images: bool = True,
-                 out_csv: Path = OUT_CSV, copy_dir: Path = PICKED_DIR,
-                 existing_rows: list[dict] | None = None):
+    def __init__(
+        self,
+        root: tk.Tk,
+        pools: dict[str, list[dict]],
+        targets: dict[str, int],
+        meta: dict[str, dict],
+        copy_images: bool = True,
+        out_csv: Path = OUT_CSV,
+        copy_dir: Path = PICKED_DIR,
+        existing_rows: list[dict] | None = None,
+    ):
         self.root = root
         self.meta = meta
         self.copy_images = copy_images
@@ -235,7 +259,7 @@ class ReviewApp:
         self.pool: dict[str, list[dict]] = {l: list(pools[l]) for l in common.LABELS}
         self.kept: dict[str, list[dict]] = {l: [] for l in common.LABELS}
         self.axed: dict[str, list[dict]] = {l: [] for l in common.LABELS}
-        self.history: list[tuple] = []   # ("keep"|"axe", label, row)
+        self.history: list[tuple] = []  # ("keep"|"axe", label, row)
         self.current_label: str | None = None
         self.current_row: dict | None = None
         self.photo = None
@@ -262,54 +286,88 @@ class ReviewApp:
         # header
         header = tk.Frame(root, bg=COLORS["bg"])
         header.pack(fill="x", padx=24, pady=(18, 4))
-        tk.Label(header, text="Pick good images (keep / axe)",
-                 font=(FONT, 17, "bold"), bg=COLORS["bg"],
-                 fg=COLORS["text"]).pack(anchor="w")
+        tk.Label(
+            header,
+            text="Pick good images (keep / axe)",
+            font=(FONT, 17, "bold"),
+            bg=COLORS["bg"],
+            fg=COLORS["text"],
+        ).pack(anchor="w")
         self.status_var = tk.StringVar()
-        tk.Label(header, textvariable=self.status_var, font=(FONT, 11),
-                 bg=COLORS["bg"], fg=COLORS["muted"]).pack(anchor="w")
+        tk.Label(
+            header,
+            textvariable=self.status_var,
+            font=(FONT, 11),
+            bg=COLORS["bg"],
+            fg=COLORS["muted"],
+        ).pack(anchor="w")
 
         # body
         body = tk.Frame(root, bg=COLORS["bg"])
         body.pack(fill="both", expand=True, padx=24, pady=12)
 
-        image_card = tk.Frame(body, bg=COLORS["card"],
-                              highlightbackground=COLORS["border"],
-                              highlightthickness=1)
+        image_card = tk.Frame(
+            body,
+            bg=COLORS["card"],
+            highlightbackground=COLORS["border"],
+            highlightthickness=1,
+        )
         image_card.pack(side="left", fill="both", expand=True, padx=(0, 16))
-        self.image_label = tk.Label(image_card, bg=COLORS["card"],
-                                    fg=COLORS["muted"], text="Loading…",
-                                    font=(FONT, 13))
+        self.image_label = tk.Label(
+            image_card,
+            bg=COLORS["card"],
+            fg=COLORS["muted"],
+            text="Loading…",
+            font=(FONT, 13),
+        )
         self.image_label.pack(expand=True)
 
-        info_card = tk.Frame(body, bg=COLORS["card"],
-                             highlightbackground=COLORS["border"],
-                             highlightthickness=1)
+        info_card = tk.Frame(
+            body,
+            bg=COLORS["card"],
+            highlightbackground=COLORS["border"],
+            highlightthickness=1,
+        )
         info_card.pack(side="left", fill="y")
         inner = tk.Frame(info_card, bg=COLORS["card"])
         inner.pack(anchor="nw", padx=20, pady=18)
 
-        self.badge_label = tk.Label(inner, text="", font=(FONT, 17, "bold"),
-                                    padx=18, pady=7)
+        self.badge_label = tk.Label(
+            inner, text="", font=(FONT, 17, "bold"), padx=18, pady=7
+        )
         self.badge_label.pack(anchor="w", pady=(0, 14))
 
         self.info_var = tk.StringVar()
-        tk.Label(inner, textvariable=self.info_var, font=(FONT, 10),
-                 bg=COLORS["card"], fg=COLORS["muted"], justify="left",
-                 anchor="w").pack(anchor="w", pady=(0, 18))
+        tk.Label(
+            inner,
+            textvariable=self.info_var,
+            font=(FONT, 10),
+            bg=COLORS["card"],
+            fg=COLORS["muted"],
+            justify="left",
+            anchor="w",
+        ).pack(anchor="w", pady=(0, 18))
 
         # controls
         controls = tk.Frame(inner, bg=COLORS["card"])
         controls.pack(anchor="w", pady=(8, 0))
-        self._button(controls, "Keep  (K)", self.keep, COLORS["keep"],
-                     COLORS["keep_active"]).pack(side="left", padx=(0, 8))
-        self._button(controls, "Axe  (X)", self.axe, COLORS["axe"],
-                     COLORS["axe_active"]).pack(side="left", padx=(0, 8))
-        self._button(controls, "Undo  (U)", self.undo, COLORS["undo"],
-                     COLORS["undo_active"]).pack(side="left")
+        self._button(
+            controls, "Keep  (K)", self.keep, COLORS["keep"], COLORS["keep_active"]
+        ).pack(side="left", padx=(0, 8))
+        self._button(
+            controls, "Axe  (X)", self.axe, COLORS["axe"], COLORS["axe_active"]
+        ).pack(side="left", padx=(0, 8))
+        self._button(
+            controls, "Undo  (U)", self.undo, COLORS["undo"], COLORS["undo_active"]
+        ).pack(side="left")
 
-        tk.Label(inner, text="Esc = finish & save", font=(FONT, 9),
-                 bg=COLORS["card"], fg=COLORS["muted"]).pack(anchor="w", pady=(14, 0))
+        tk.Label(
+            inner,
+            text="Esc = finish & save",
+            font=(FONT, 9),
+            bg=COLORS["card"],
+            fg=COLORS["muted"],
+        ).pack(anchor="w", pady=(14, 0))
 
         root.bind("<KeyPress-k>", lambda e: self.keep())
         root.bind("<KeyPress-K>", lambda e: self.keep())
@@ -323,11 +381,22 @@ class ReviewApp:
         root.bind("<Escape>", lambda e: self.finish())
 
     def _button(self, parent, text, cmd, bg, active):
-        return tk.Button(parent, text=text, command=cmd, bg=bg, fg="white",
-                         activebackground=active, activeforeground="white",
-                         relief="flat", bd=0, padx=18, pady=8,
-                         font=(FONT, 11, "bold"), cursor="hand2",
-                         highlightthickness=0)
+        return tk.Button(
+            parent,
+            text=text,
+            command=cmd,
+            bg=bg,
+            fg="white",
+            activebackground=active,
+            activeforeground="white",
+            relief="flat",
+            bd=0,
+            padx=18,
+            pady=8,
+            font=(FONT, 11, "bold"),
+            cursor="hand2",
+            highlightthickness=0,
+        )
 
     # actions
     def keep(self) -> None:
@@ -385,8 +454,10 @@ class ReviewApp:
                 self.finish()
                 return
             if not self.pool[label]:
-                print(f"[warn] {label} ran out of candidates "
-                      f"({len(self.kept[label])}/{self.target[label]} kept)")
+                print(
+                    f"[warn] {label} ran out of candidates "
+                    f"({len(self.kept[label])}/{self.target[label]} kept)"
+                )
                 # treat this label as done at its current count
                 self.target[label] = len(self.kept[label])
                 continue
@@ -451,8 +522,10 @@ class ReviewApp:
     def _update_info(self, row: dict) -> None:
         label = row["label"]
         self.badge_label.configure(
-            text=label, fg="white",
-            bg=COLORS["real"] if label == "REAL" else COLORS["fake"])
+            text=label,
+            fg="white",
+            bg=COLORS["real"] if label == "REAL" else COLORS["fake"],
+        )
         m = self.meta.get(row.get("image_id", ""), {})
         # gender/age/ethnicity may live in the row itself (e.g. FINAL_DATASET
         # or final_fake_gendered.csv) or in the enriched metadata CSV.
@@ -476,7 +549,8 @@ class ReviewApp:
         self.info_var.set(
             f"image_id: {row['image_id']}\n"
             f"source_dataset: {row.get('source_dataset', '')}\n"
-            f"\n{hint_str}")
+            f"\n{hint_str}"
+        )
 
     def _refresh_status(self) -> None:
         parts = []
@@ -488,12 +562,15 @@ class ReviewApp:
     def finish(self) -> None:
         if self.done:
             return
-        incomplete = [l for l in common.LABELS
-                      if len(self.kept[l]) < self.target[l]]
+        incomplete = [l for l in common.LABELS if len(self.kept[l]) < self.target[l]]
         if incomplete and self.pool_has_remaining():
-            msg = ("Not all targets met:\n"
-                   + "\n".join(f"  {l}: {len(self.kept[l])}/{self.target[l]}" for l in incomplete)
-                   + "\n\nFinish anyway and save what you have?")
+            msg = (
+                "Not all targets met:\n"
+                + "\n".join(
+                    f"  {l}: {len(self.kept[l])}/{self.target[l]}" for l in incomplete
+                )
+                + "\n\nFinish anyway and save what you have?"
+            )
             if not messagebox.askyesno("Finish early?", msg):
                 return
         self._finalize()
@@ -504,44 +581,75 @@ class ReviewApp:
 
     def _finalize(self) -> None:
         kept: dict[str, list[dict]] = {
-            l: self.kept[l][: self.target[l]] for l in common.LABELS}
+            l: self.kept[l][: self.target[l]] for l in common.LABELS
+        }
         if self.existing_rows is not None:
-            merge_outputs(kept, self.existing_rows, self.out_csv, self.copy_dir,
-                          copy_images=self.copy_images)
+            merge_outputs(
+                kept,
+                self.existing_rows,
+                self.out_csv,
+                self.copy_dir,
+                copy_images=self.copy_images,
+            )
         else:
-            write_outputs(kept, self.out_csv, self.copy_dir,
-                          copy_images=self.copy_images)
+            write_outputs(
+                kept, self.out_csv, self.copy_dir, copy_images=self.copy_images
+            )
         self.done = True
 
     def _quit(self) -> None:
         self._finalize()
+
+
 # Main
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Pick good images from a manifest.")
-    parser.add_argument("--csv", required=True,
-                        help="source manifest CSV (explicit selection required)")
-    parser.add_argument("--per-label", type=int, default=PER_LABEL,
-                        help="images to keep per label (default 25 -> 50 total)")
-    parser.add_argument("--count", type=int, default=0,
-                        help="total to keep, split evenly across labels "
-                             "(overrides --per-label)")
+    parser.add_argument(
+        "--csv", required=True, help="source manifest CSV (explicit selection required)"
+    )
+    parser.add_argument(
+        "--per-label",
+        type=int,
+        default=PER_LABEL,
+        help="images to keep per label (default 25 -> 50 total)",
+    )
+    parser.add_argument(
+        "--count",
+        type=int,
+        default=0,
+        help="total to keep, split evenly across labels " "(overrides --per-label)",
+    )
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument("--out", default=str(OUT_CSV), help="output CSV")
     parser.add_argument("--copy-dir", default=str(PICKED_DIR), help="image copy dir")
-    parser.add_argument("--no-copy", action="store_true",
-                        help="don't copy the picked images")
-    parser.add_argument("--overwrite", action="store_true",
-                        help="allow replacing an existing output CSV")
-    parser.add_argument("--labels", default="",
-                        help="comma-separated labels to review (e.g. 'fake'); "
-                             "default: all labels in the CSV")
-    parser.add_argument("--skip-avatars", action="store_true",
-                        help="exclude cartoon avatar hosts (dicebear, multiavatar)")
-    parser.add_argument("--append", default="",
-                        help="append new picks to an existing picked CSV "
-                             "(e.g. Dataset/picked.csv) instead of overwriting")
-    parser.add_argument("--meta", default=str(METADATA_CSV),
-                        help="metadata CSV for on-screen hints")
+    parser.add_argument(
+        "--no-copy", action="store_true", help="don't copy the picked images"
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="allow replacing an existing output CSV",
+    )
+    parser.add_argument(
+        "--labels",
+        default="",
+        help="comma-separated labels to review (e.g. 'fake'); "
+        "default: all labels in the CSV",
+    )
+    parser.add_argument(
+        "--skip-avatars",
+        action="store_true",
+        help="exclude cartoon avatar hosts (dicebear, multiavatar)",
+    )
+    parser.add_argument(
+        "--append",
+        default="",
+        help="append new picks to an existing picked CSV "
+        "(e.g. Dataset/picked.csv) instead of overwriting",
+    )
+    parser.add_argument(
+        "--meta", default=str(METADATA_CSV), help="metadata CSV for on-screen hints"
+    )
     args = parser.parse_args(argv)
 
     if args.count:
@@ -559,7 +667,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(
             f"output already exists: {out_path}\n"
             "Pass --out for a new file (e.g. --out picked_extra.csv), or "
-            "--overwrite to replace it.")
+            "--overwrite to replace it."
+        )
 
     rows = common.load_rows(csv_path)
     print(f"[loaded] {len(rows)} rows from {csv_path}")
@@ -571,10 +680,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.skip_avatars:
         before = len(rows)
-        rows = [r for r in rows
-                if not any(h in (r.get("image_url") or "") for h in AVATAR_HOSTS)]
-        print(f"[skip-avatars] removed {before - len(rows)} rows "
-              f"({len(rows)} remain)")
+        rows = [
+            r
+            for r in rows
+            if not any(h in (r.get("image_url") or "") for h in AVATAR_HOSTS)
+        ]
+        print(
+            f"[skip-avatars] removed {before - len(rows)} rows " f"({len(rows)} remain)"
+        )
 
     existing_rows: list[dict] | None = None
     if append_path is not None:
@@ -582,8 +695,10 @@ def main(argv: list[str] | None = None) -> int:
             existing_rows = common.load_rows(append_path)
             existing_ids = {r.get("image_id", "") for r in existing_rows}
             rows = [r for r in rows if r.get("image_id") not in existing_ids]
-            print(f"[append] {len(existing_rows)} existing rows in {append_path}; "
-                  f"{len(rows)} new candidates remain")
+            print(
+                f"[append] {len(existing_rows)} existing rows in {append_path}; "
+                f"{len(rows)} new candidates remain"
+            )
         else:
             existing_rows = []
             print(f"[append] {append_path} does not exist yet; starting fresh")
@@ -603,15 +718,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[metadata] {len(meta)} rows loaded (shown as hints)")
 
     if not _HAS_TK:
-        print("[error] tkinter is not available in this environment; "
-              "cannot open the review GUI.")
+        print(
+            "[error] tkinter is not available in this environment; "
+            "cannot open the review GUI."
+        )
         return 1
 
     root = tk.Tk()
-    app = ReviewApp(root, pools, targets, meta,
-                    copy_images=not args.no_copy,
-                    out_csv=out_path, copy_dir=Path(args.copy_dir),
-                    existing_rows=existing_rows)
+    app = ReviewApp(
+        root,
+        pools,
+        targets,
+        meta,
+        copy_images=not args.no_copy,
+        out_csv=out_path,
+        copy_dir=Path(args.copy_dir),
+        existing_rows=existing_rows,
+    )
     root.mainloop()
     return 0
 

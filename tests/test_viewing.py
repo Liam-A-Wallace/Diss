@@ -1,4 +1,5 @@
 """Exercise viewing lifecycle without opening a window or starting a camera."""
+
 import importlib.util
 import itertools
 from pathlib import Path
@@ -51,9 +52,13 @@ class ViewingTests(unittest.TestCase):
     def exercise(self, interrupt):
         key_events = iter([[], ["escape" if interrupt else "return"]])
         event = types.SimpleNamespace(getKeys=lambda **kwargs: next(key_events))
-        fake_psychopy = types.SimpleNamespace(event=event, visual=types.SimpleNamespace(Rect=Stim))
+        fake_psychopy = types.SimpleNamespace(
+            event=event, visual=types.SimpleNamespace(Rect=Stim)
+        )
         fake_overlay = types.SimpleNamespace(draw=lambda: None, hide=lambda: None)
-        spec = importlib.util.spec_from_file_location("viewing_test_module", Path(__file__).parents[1] / "viewing.py")
+        spec = importlib.util.spec_from_file_location(
+            "viewing_test_module", Path(__file__).parents[1] / "viewing.py"
+        )
         viewing = importlib.util.module_from_spec(spec)
         with patch.dict("sys.modules", psychopy=fake_psychopy, overlay=fake_overlay):
             spec.loader.exec_module(viewing)
@@ -63,13 +68,34 @@ class ViewingTests(unittest.TestCase):
             path = Path(tmp) / "face.png"
             Image.new("RGB", (100, 100)).save(path)
             base = str(Path(tmp) / "session")
-            session = SessionLog(base, {"participant": "SYNTHETIC"}, (1920, 1080),
-                                 (1920, 1080), {}, [{"stimulus": str(path)}], [])
+            session = SessionLog(
+                base,
+                {"participant": "SYNTHETIC"},
+                (1920, 1080),
+                (1920, 1080),
+                {},
+                [{"stimulus": str(path)}],
+                [],
+            )
             windows = []
-            gaze = types.SimpleNamespace(mark_trial=lambda value: None,
-                                         record_window=lambda *args: windows.append(args))
-            args = (Window(), Mouse(), Stim(), str(path), Stim(), Stim(), gaze,
-                    session, 1, 1, False, "real")
+            gaze = types.SimpleNamespace(
+                mark_trial=lambda value: None,
+                record_window=lambda *args: windows.append(args),
+            )
+            args = (
+                Window(),
+                Mouse(),
+                Stim(),
+                str(path),
+                Stim(),
+                Stim(),
+                gaze,
+                session,
+                1,
+                1,
+                False,
+                "real",
+            )
             if interrupt:
                 with self.assertRaises(QuitExperiment):
                     viewing.view_image(*args)
@@ -81,7 +107,9 @@ class ViewingTests(unittest.TestCase):
             self.assertEqual([e["kind"] for e in events], ["present", "offset"])
             self.assertEqual(events[-1]["interrupted"], interrupt)
             self.assertEqual(len(windows), 1)
-            self.assertEqual(windows[0][-2:], (events[0]["timestamp_ns"], events[1]["timestamp_ns"]))
+            self.assertEqual(
+                windows[0][-2:], (events[0]["timestamp_ns"], events[1]["timestamp_ns"])
+            )
 
     def test_normal_completion(self):
         self.exercise(False)

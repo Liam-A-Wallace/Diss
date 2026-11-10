@@ -27,11 +27,13 @@ from pathlib import Path
 import requests
 from PIL import Image
 
-HERE = Path(__file__).resolve().parent            # Diss/dataset/scripts
-ROOT = HERE.parent                               # Diss/dataset
+HERE = Path(__file__).resolve().parent  # Diss/dataset/scripts
+ROOT = HERE.parent  # Diss/dataset
 # Raw images live beside Diss; RAW_DATA_ROOT can override that location.
-RAW_DATA_ROOT = Path(os.environ.get("RAW_DATA_ROOT") or HERE.parent.parent.parent / "Dataset")
-REPO = RAW_DATA_ROOT.parent                      # root the CSVs' image_url paths are relative to
+RAW_DATA_ROOT = Path(
+    os.environ.get("RAW_DATA_ROOT") or HERE.parent.parent.parent / "Dataset"
+)
+REPO = RAW_DATA_ROOT.parent  # root the CSVs' image_url paths are relative to
 DATASETS_DIR = RAW_DATA_ROOT / "datasets"
 DATASET_CSV = ROOT / "manifests" / "FINAL_DATASET.csv"
 CACHE_DIR = ROOT / ".image_cache"
@@ -60,7 +62,9 @@ def _is_numeric(value) -> bool:
         return False
 
 
-def derive_difficulty(rows: list[dict], high_conf_is_easy: bool = True) -> dict[str, str]:
+def derive_difficulty(
+    rows: list[dict], high_conf_is_easy: bool = True
+) -> dict[str, str]:
     """Assign Easy/Medium/Hard by confidence tertiles *within* each label.
 
     Returns a mapping ``image_id -> difficulty``. Rows without a numeric
@@ -73,9 +77,11 @@ def derive_difficulty(rows: list[dict], high_conf_is_easy: bool = True) -> dict[
     """
     mapping: dict[str, str] = {}
     for label in LABELS:
-        class_rows = [r for r in rows
-                      if r.get("label") == label
-                      and _is_numeric(r.get("confidence_score"))]
+        class_rows = [
+            r
+            for r in rows
+            if r.get("label") == label and _is_numeric(r.get("confidence_score"))
+        ]
         # stable sort: confidence ascending, image_id as tie-break
         class_rows.sort(key=lambda r: (float(r["confidence_score"]), r["image_id"]))
         n = len(class_rows)
@@ -124,6 +130,8 @@ def _is_local_path(url: str) -> bool:
     if url.startswith(("http://", "https://", "ftp://")):
         return False
     return resolve_image_path(url) is not None
+
+
 # Local image path resolution
 # ``image_url`` values in the CSVs may be absolute (machine-specific), relative
 # to the Dataset folder, or relative to the repo root. Resolve any of those to
@@ -236,6 +244,8 @@ def fetch_image(row: dict, thumbnail: bool = True) -> Image.Image | None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     img.save(dest, "JPEG", quality=92)
     return img
+
+
 # Face check (used by the optional "face only" pre-filter in curate.py)
 _HAAR_CASCADE = None
 
@@ -273,6 +283,7 @@ def _haar():
     global _HAAR_CASCADE
     if _HAAR_CASCADE is None:
         import cv2
+
         _HAAR_CASCADE = cv2.CascadeClassifier(str(_haar_path()))
         if _HAAR_CASCADE.empty():
             raise RuntimeError("Failed to load the face-detection cascade")
@@ -299,19 +310,25 @@ def face_check(img, min_face_fraction=0.1, max_faces=1):
             gray, scaleFactor=1.1, minNeighbors=5, minSize=(40, 40)
         )
     except Exception:
-        return {"ok": True, "faces": 0, "max_fraction": 0.0,
-                "reason": "unavailable"}
+        return {"ok": True, "faces": 0, "max_fraction": 0.0, "reason": "unavailable"}
     n = len(faces)
     total = gray.shape[0] * gray.shape[1]
-    max_fraction = max((float(w * h) / total for (x, y, w, h) in faces),
-                       default=0.0)
+    max_fraction = max((float(w * h) / total for (x, y, w, h) in faces), default=0.0)
 
     if n == 0:
         return {"ok": False, "faces": 0, "max_fraction": 0.0, "reason": "no_face"}
     if n > max_faces:
-        return {"ok": False, "faces": n, "max_fraction": max_fraction,
-                "reason": "multiple_faces"}
+        return {
+            "ok": False,
+            "faces": n,
+            "max_fraction": max_fraction,
+            "reason": "multiple_faces",
+        }
     if max_fraction < min_face_fraction:
-        return {"ok": False, "faces": n, "max_fraction": max_fraction,
-                "reason": "face_too_small"}
+        return {
+            "ok": False,
+            "faces": n,
+            "max_fraction": max_fraction,
+            "reason": "face_too_small",
+        }
     return {"ok": True, "faces": n, "max_fraction": max_fraction, "reason": "ok"}

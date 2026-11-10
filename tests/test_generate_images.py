@@ -1,4 +1,5 @@
 """Exercise generation recovery without making API requests."""
+
 import base64
 import contextlib
 import io
@@ -23,12 +24,19 @@ class GenerateImagesTests(unittest.TestCase):
         self.out = Path(self.temporary.name)
         self.args = ["--count", "2", "--out", str(self.out), "--seed", "20261105"]
         self.client = MagicMock()
-        self.response = types.SimpleNamespace(data=[types.SimpleNamespace(
-            b64_json=base64.b64encode(b"\x89PNG\r\n\x1a\ntest").decode())])
+        self.response = types.SimpleNamespace(
+            data=[
+                types.SimpleNamespace(
+                    b64_json=base64.b64encode(b"\x89PNG\r\n\x1a\ntest").decode()
+                )
+            ]
+        )
         self.client.images.generate.return_value = self.response
         self.factory = MagicMock()
         self.factory.return_value.__enter__.return_value = self.client
-        fake_sdk = types.SimpleNamespace(OpenAI=self.factory, RateLimitError=FakeRateLimitError)
+        fake_sdk = types.SimpleNamespace(
+            OpenAI=self.factory, RateLimitError=FakeRateLimitError
+        )
         sdk_patch = patch.dict("sys.modules", {"openai": fake_sdk})
         sdk_patch.start()
         self.addCleanup(sdk_patch.stop)
@@ -45,22 +53,32 @@ class GenerateImagesTests(unittest.TestCase):
 
     def test_random_default_seed_is_saved_and_reused(self):
         self.args = self.args[:-2]
-        with patch('generate_images.random.SystemRandom') as rng:
+        with patch("generate_images.random.SystemRandom") as rng:
             rng.return_value.randrange.return_value = 12345
             self.assertEqual(self.run_generator(), 0)
-            self.assertEqual(self.read_log()['settings']['seed'], 12345)
+            self.assertEqual(self.read_log()["settings"]["seed"], 12345)
             self.assertEqual(self.run_generator(), 0)
             rng.return_value.randrange.assert_called_once()
         self.assertEqual(self.client.images.generate.call_count, 2)
 
     def test_quota_rejection_can_resume_without_repeating_saved_images(self):
-        response = types.SimpleNamespace(data=[types.SimpleNamespace(
-            b64_json=base64.b64encode(b"\x89PNG\r\n\x1a\ntest").decode())])
-        self.client.images.generate.side_effect = [response, FakeRateLimitError("No credits remaining")]
+        response = types.SimpleNamespace(
+            data=[
+                types.SimpleNamespace(
+                    b64_json=base64.b64encode(b"\x89PNG\r\n\x1a\ntest").decode()
+                )
+            ]
+        )
+        self.client.images.generate.side_effect = [
+            response,
+            FakeRateLimitError("No credits remaining"),
+        ]
         self.assertEqual(self.run_generator(), 1)
         log = self.read_log()
         self.assertEqual([row["status"] for row in log["images"]], ["saved", "pending"])
-        self.assertEqual(log["images"][1]["last_error"]["code"], "credit_balance_exhausted")
+        self.assertEqual(
+            log["images"][1]["last_error"]["code"], "credit_balance_exhausted"
+        )
         saved_path = self.out / f"{log['images'][0]['id']}.png"
         saved_bytes = saved_path.read_bytes()
 
@@ -70,7 +88,9 @@ class GenerateImagesTests(unittest.TestCase):
         self.assertEqual(self.run_generator(), 0)
         self.client.images.generate.assert_called_once()
         self.assertEqual(saved_path.read_bytes(), saved_bytes)
-        self.assertTrue(all(row["status"] == "saved" for row in self.read_log()["images"]))
+        self.assertTrue(
+            all(row["status"] == "saved" for row in self.read_log()["images"])
+        )
         self.factory.assert_called_with(timeout=600, max_retries=0)
 
     def test_timeout_remains_blocked_without_another_api_call(self):
@@ -98,8 +118,10 @@ class GenerateImagesTests(unittest.TestCase):
         log = self.read_log()
         self.assertEqual(log["images"][:2], original)
         self.assertEqual(log["prompt_batches"], [2, 4])
-        self.assertEqual({r["id"] for r in log["images"]}, {
-            f"pair_{pair:03d}_{group}" for pair in range(1, 4) for group in "AB"})
+        self.assertEqual(
+            {r["id"] for r in log["images"]},
+            {f"pair_{pair:03d}_{group}" for pair in range(1, 4) for group in "AB"},
+        )
         for name, content in originals.items():
             self.assertEqual((self.out / name).read_bytes(), content)
         self.client.images.generate.reset_mock()
@@ -162,7 +184,9 @@ class GenerateImagesTests(unittest.TestCase):
         self.args.append("--dry-run")
         self.client.images.generate.reset_mock()
         output = io.StringIO()
-        with patch.dict("os.environ", {"OPENAI_API_KEY": ""}), contextlib.redirect_stdout(output):
+        with patch.dict(
+            "os.environ", {"OPENAI_API_KEY": ""}
+        ), contextlib.redirect_stdout(output):
             self.assertEqual(generate_images.main(self.args), 0)
         self.assertIn("pair_002_A (pending)", output.getvalue())
         self.assertEqual((self.out / "prompts.json").read_bytes(), original)
@@ -170,8 +194,12 @@ class GenerateImagesTests(unittest.TestCase):
 
     def test_existing_randomised_plan_generates_in_pair_order(self):
         rows = generate_images.make_prompts(40, 20261105)
-        settings = dict(seed=20261105, model="gpt-image-2.6-sunburst",
-                        quality="medium", size="1024x1024")
+        settings = dict(
+            seed=20261105,
+            model="gpt-image-2.6-sunburst",
+            quality="medium",
+            size="1024x1024",
+        )
         # Simulate an existing log from before generation order was fixed.
         log = dict(settings=settings, images=[dict(r, status="pending") for r in rows])
         generate_images.save_log(self.out / "prompts.json", log)
@@ -179,14 +207,32 @@ class GenerateImagesTests(unittest.TestCase):
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
             self.assertEqual(generate_images.main(self.args), 0)
-        expected_ids = [f"pair_{pair:03d}_{group}" for pair in range(1, 21) for group in "AB"]
-        self.assertEqual([line.removeprefix("Generating ").removesuffix("...")
-                          for line in output.getvalue().splitlines() if line.startswith("Generating ")],
-                         expected_ids)
+        expected_ids = [
+            f"pair_{pair:03d}_{group}" for pair in range(1, 21) for group in "AB"
+        ]
+        self.assertEqual(
+            [
+                line.removeprefix("Generating ").removesuffix("...")
+                for line in output.getvalue().splitlines()
+                if line.startswith("Generating ")
+            ],
+            expected_ids,
+        )
         prompts_by_id = {row["id"]: row["prompt"] for row in rows}
-        self.assertEqual([call.kwargs["prompt"] for call in self.client.images.generate.call_args_list],
-                         [prompts_by_id[image_id] for image_id in expected_ids])
-        self.assertEqual([{k: row[k] for k in ("id", "prompt")} for row in self.read_log()["images"]], rows)
+        self.assertEqual(
+            [
+                call.kwargs["prompt"]
+                for call in self.client.images.generate.call_args_list
+            ],
+            [prompts_by_id[image_id] for image_id in expected_ids],
+        )
+        self.assertEqual(
+            [
+                {k: row[k] for k in ("id", "prompt")}
+                for row in self.read_log()["images"]
+            ],
+            rows,
+        )
 
     def test_new_and_extended_plans_generate_a_then_b(self):
         for count, first_pair in ((4, 1), (8, 3)):
@@ -195,10 +241,18 @@ class GenerateImagesTests(unittest.TestCase):
                 output = io.StringIO()
                 with contextlib.redirect_stdout(output):
                     self.assertEqual(generate_images.main(self.args), 0)
-                self.assertEqual([line for line in output.getvalue().splitlines()
-                                  if line.startswith("Generating ")],
-                                 [f"Generating pair_{pair:03d}_{group}..."
-                                  for pair in range(first_pair, count // 2 + 1) for group in "AB"])
+                self.assertEqual(
+                    [
+                        line
+                        for line in output.getvalue().splitlines()
+                        if line.startswith("Generating ")
+                    ],
+                    [
+                        f"Generating pair_{pair:03d}_{group}..."
+                        for pair in range(first_pair, count // 2 + 1)
+                        for group in "AB"
+                    ],
+                )
 
 
 if __name__ == "__main__":
