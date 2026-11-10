@@ -4,10 +4,6 @@ The experiment uses `../trials.csv`. Its fake images are OpenAI images in
 `../stimuli/openai_shared_style/`. The demo selects from the same trial list.
 No curation/export command is needed for ordinary collection or analysis.
 
-The former DFR60K manifest builders, legacy curator and duplicate
-`stimulus-curation/` pipeline were removed from this workspace. External
-corpora under the sibling `Dataset/` directory were not targeted by this cleanup.
-
 `outputs/picked.csv`, `outputs/review_log.csv` and metadata retain historical
 selection records, including the provenance of the real images still in use.
 DFR60K mentions in those records describe provenance; they do not activate old

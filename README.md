@@ -25,8 +25,7 @@ experiment means a live gaze dot; use `demo.py` for the shortened experiment.
 `trials.csv` selects the active real photos and OpenAI fakes in
 `stimuli/openai_shared_style/`. The demo selects three real images and two
 OpenAI fakes from this same list, using their original paths without copying
-them into another image folder. The retired DFR60K fake workflow has been
-removed from this workspace. Files in sibling folders were retained.
+them into another image folder.
 
 ## Project folders
 
@@ -37,7 +36,7 @@ removed from this workspace. Files in sibling folders were retained.
 | Other root Python modules | Experiment UI, tracking, display mapping and recording |
 | `analysis/` | Gaze processing, fixations and facial AOIs |
 | `tools/` | Landmark previews and placeholder generation |
-| `docs/` | Demo, experiment and developer guides; cleanup review |
+| `docs/` | Demo, experiment and developer guides |
 | `dataset/` | Curation tools, source manifests, metadata and selection outputs |
 | `tests/` | Regression checks |
 | `stimuli/` | Images shown by the experiment |
@@ -62,9 +61,14 @@ raw gaze and display logs without needing that extra export.
 - [Full experiment setup, controls and recording files](docs/EXPERIMENT.md)
 - [Developer guide](docs/DEV_GUIDE.md)
 - [Dataset selection and export](dataset/README.md)
-- [Files to review for possible removal](docs/CLEANUP_REVIEW.md)
 
 Install base dependencies with `python -m pip install -r requirements.txt`.
+For more detailed facial AOIs, use `python analyse.py aois --detailed --test`,
+then `python analyse.py review --detailed --test`. After reviewing the masks,
+run `python analyse.py --detailed --test` for analysis. This version preserves
+separate eyes, eyebrows, ears and lip components and adds approximate under-eye,
+cheek, forehead and chin regions. See [detailed AOI definitions](docs/DETAILED_AOIS.md).
+
 Facial AOI generation also needs
 `python -m pip install -r requirements-aois.txt`. Follow the setup guides for
 the local GazeFollower dependencies and webcam configuration.

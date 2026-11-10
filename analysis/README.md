@@ -49,6 +49,24 @@ Now run python analyse.py again to include AOI dwell and transitions. Add --test
 
 The [face-parsing model](https://huggingface.co/jonathandinu/face-parsing) supplies eyes, eyebrows, nose, mouth/lips, ears, hair, glasses and other skin/background classes. Left/right features are combined into broad regions. Forehead and hairline are explicitly derived approximations based on skin, brows and hair. Tilt, occlusion, bangs and baldness can invalidate them. Low-confidence pixels are uncertain; the confidence score is not a calibrated probability. The model specifies non-commercial research/educational use and needs validation on your generated faces.
 
+## Detailed facial AOIs
+
+Add `--detailed` consistently to generation, review and analysis:
+
+~~~powershell
+python analyse.py aois --detailed --test
+python analyse.py review --detailed --test
+python analyse.py --detailed --test
+~~~
+
+Detailed-v4 preserves separate image-left/right eyes, brows and ears, upper and
+lower lips and mouth interior. Approximate under-eye, cheek, forehead and chin
+regions use mesh geometry restricted to confident skin. Missing support causes
+regions to be withheld and flagged. Original mesh coordinates and label sources
+are exported with the masks. Sides refer to the displayed image. These masks
+use `aois/test/detailed-v4`; omit `--test` for `aois/main/detailed-v4`.
+See [definitions, limitations and validation](../docs/DETAILED_AOIS.md).
+
 ## Output files
 
 The web report stays at `processed/SESSION_NAME/index.html`. All analysis CSVs are grouped in `processed/SESSION_NAME/data_results/`, with download links in the report. Plot images and `analysis.json` remain beside the report. Rerunning analysis creates a new report folder and preserves previous exports.
@@ -102,7 +120,9 @@ python analyse.py --no-plots
 
 If matplotlib is unavailable, the short command reports this and still saves CSVs. Both `python analyse.py --help` and `python -m analysis.process --help` expose coordinate-source and fixation-threshold settings for methodological comparisons. The lower-level `--max-gap-ms` remains an alias of `--sample-max-gap-ms`.
 
-Run regression tests with python -m unittest discover -s tests -v. The sandbox tests use Python 3.12, synthetic data and a mocked display. Live PsychoPy/webcam behaviour, model inference and matplotlib rendering remain unvalidated here because the intended Python 3.10 environment and those dependencies are unavailable.
+Run tests with `python -m unittest discover -s tests -v`. Tests use synthetic
+data and mocked display/tracker objects. Check webcam behaviour, model inference
+and display timing on the collection setup.
 
 ## Scanpath analysis
 

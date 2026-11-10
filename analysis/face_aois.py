@@ -53,20 +53,22 @@ def derive_regions(labels, confidence, id2label, min_confidence=0.6):
     return mask, notes
 
 
-def preview(image, mask, out):
+def preview(image, mask, out, labels=None, solid=False):
     import numpy as np
     from PIL import Image, ImageDraw
     # Stable colours independent of labels present in a particular stimulus.
+    labels = {int(k): v for k, v in (labels or LABELS).items()}
     palette = {k: ((k * 83 + 50) % 256, (k * 137 + 80) % 256,
-                   (k * 47 + 130) % 256) for k in LABELS}
+                   (k * 47 + 130) % 256) for k in labels}
+    palette[255] = (96, 96, 96)
     colour = np.zeros((*mask.shape, 3), dtype=np.uint8)
     for k, rgb in palette.items():
         colour[mask == k] = rgb
-    overlay = Image.blend(image.convert("RGB"), Image.fromarray(colour), 0.38)
-    canvas = Image.new("RGB", (image.width + 240, max(image.height, 430)), "white")
+    overlay = Image.fromarray(colour) if solid else Image.blend(image.convert("RGB"), Image.fromarray(colour), 0.38)
+    canvas = Image.new("RGB", (image.width + 280, max(image.height, len(labels) * 24 + 24)), "white")
     canvas.paste(overlay, (0, 0))
     draw = ImageDraw.Draw(canvas)
-    for row, (k, name) in enumerate(LABELS.items()):
+    for row, (k, name) in enumerate(labels.items()):
         y = 12 + row * 24
         draw.rectangle((image.width + 10, y, image.width + 28, y + 16), fill=palette[k])
         draw.text((image.width + 34, y), name, fill="black")
@@ -74,10 +76,20 @@ def preview(image, mask, out):
 
 
 def save_manifest(path, manifest):
+    import time
     path = Path(path)
     temporary = path.with_suffix(".json.tmp")
     temporary.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    temporary.replace(path)
+    # Windows file scanners/readers can briefly hold the destination open.
+    # Preserve the atomic update and fail explicitly if the lock persists.
+    for attempt in range(6):
+        try:
+            temporary.replace(path)
+            return
+        except PermissionError:
+            if attempt == 5:
+                raise
+            time.sleep(0.1 * (attempt + 1))
 
 
 def generate(stimuli, model_dir, output, min_confidence=0.6):

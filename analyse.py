@@ -140,9 +140,11 @@ def stimulus_paths(data_dir):
     return paths
 
 
-def make_aois(data_dir, aoi_dir):
+def make_aois(data_dir, aoi_dir, detailed=False):
     from analysis.face_aois import MODEL, generate
-    for module in ("torch", "transformers", "huggingface_hub"):
+    if detailed:
+        from analysis.detailed_aois import generate
+    for module in ("torch", "transformers", "huggingface_hub") + (("mediapipe",) if detailed else ()):
         if importlib.util.find_spec(module) is None:
             raise ValueError("AOI generation needs a one-off installation: python -m pip install -r requirements-aois.txt")
     paths = stimulus_paths(data_dir)
@@ -155,7 +157,7 @@ def make_aois(data_dir, aoi_dir):
         print("Downloading the face-parsing model once. Stimulus images stay on this computer.")
         snapshot_download(MODEL, local_dir=model_dir, allow_patterns=["*.json", "*.safetensors"])
     generate(paths, model_dir, aoi_dir)
-    print("AOIs are ready to inspect. Next: python analyse.py review" + (" --test" if data_dir.name == "test" else ""))
+    print("AOIs are ready to inspect. Next: python analyse.py review" + (" --test" if data_dir.name == "test" else "") + (" --detailed" if detailed else ""))
 
 
 def review_aois(aoi_dir, open_report=True):
@@ -179,11 +181,21 @@ def review_aois(aoi_dir, open_report=True):
             if set(np.unique(pixels)) - set(map(int, manifest["labels"])):
                 raise ValueError("Unknown label IDs in " + str(mask_path))
             preview_path = aoi_dir / (digest + "_review.png")
-            preview(im.convert("RGB"), pixels, preview_path)
+            preview(im.convert("RGB"), pixels, preview_path, manifest["labels"])
         reviewed_hashes[digest] = sha256(mask_path)
         items.append((source.name, preview_path, True, " ".join(record.get("notes", []))))
+        if manifest.get("schema_version") == "detailed-v4":
+            for suffix, title in (("_solid.png", "Opaque labels: exact legend colours; grey is uncertain"),
+                                  ("_raw_review.png", "Raw parser: no confidence rejection or derived geometry"),
+                                  ("_landmarks.png", "Raw MediaPipe landmarks"),
+                                  ("_confidence.png", "Parser confidence: black=0, white=1")):
+                diagnostic = aoi_dir / (digest + suffix)
+                if diagnostic.exists():
+                    items.append((source.name + " - " + title, diagnostic, True, ""))
     report = gallery(aoi_dir / "index.html", "Review facial AOIs",
-                     "Inspect every image. Forehead and hairline are approximations. Return to the terminal after checking the masks.", items)
+                     "Inspect every image and its flags. Labels ending in derived are geometric approximations. "
+                     + ("Sides refer to the displayed image. Grey means uncertain. " if str(manifest.get("schema_version")).startswith("detailed-") else "")
+                     + "Return to the terminal after checking the masks.", items)
     print("AOI gallery:", report)
     if open_report:
         webbrowser.open(report.resolve().as_uri())
@@ -197,7 +209,9 @@ def review_aois(aoi_dir, open_report=True):
         record.update(reviewed=True, reviewed_mask_sha256=reviewed_hashes[digest],
                       reviewed_at=datetime.now(timezone.utc).isoformat())
     save_manifest(path, manifest)
-    print("AOI review saved. Run python analyse.py" + (" --test" if aoi_dir.name == "test" else ""))
+    detailed = str(manifest.get("schema_version")).startswith("detailed-")
+    test = (aoi_dir.parent.name if detailed else aoi_dir.name) == "test"
+    print("AOI review saved. Run python analyse.py" + (" --test" if test else "") + (" --detailed" if detailed else ""))
 
 
 def analysis_summary(features, settings):
@@ -285,6 +299,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Analyse the latest experiment, generate AOIs, or review them.")
     parser.add_argument("target", nargs="?", default="latest", help="latest (default), aois, review, or a session base path")
     parser.add_argument("--test", action="store_true", help="use data/test and aois/test")
+    parser.add_argument("--detailed", action="store_true", help="use versioned detailed-v4 AOIs for generation, review and analysis")
     parser.add_argument("--no-open", action="store_true", help="save the report without opening a browser")
     parser.add_argument("--no-plots", action="store_true", help="CSV analysis only")
     parser.add_argument("--sample-max-gap-ms", type=float, default=100,
@@ -299,9 +314,11 @@ def main(argv=None):
     args = parser.parse_args(argv)
     data_dir = ROOT / "data" / "test" if args.test else ROOT / "data"
     aoi_dir = ROOT / "aois" / ("test" if args.test else "main")
+    if args.detailed:
+        aoi_dir = aoi_dir / "detailed-v4"
     try:
         if args.target == "aois":
-            make_aois(data_dir, aoi_dir)
+            make_aois(data_dir, aoi_dir, detailed=args.detailed)
         elif args.target == "review":
             review_aois(aoi_dir, not args.no_open)
         else:

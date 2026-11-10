@@ -69,8 +69,6 @@ and image/model assets are ignored by Git.
 
 The current selection tool is `dataset/scripts/review.py`. `export_to_diss.py`
 checks sources and stages copies before replacing the experiment set.
-`curate.py` is the older Easy/Medium/Hard workflow. `stimulus-curation/`
-contains optional image enrichment tools.
 
 Run from `Diss`:
 
