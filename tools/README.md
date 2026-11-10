@@ -11,5 +11,5 @@ Use `python demo.py` for the five-image experiment and `python analyse.py --test
 for its gaze report. Landmark previews are separate from measured gaze and
 reviewed facial AOI masks.
 
-The placeholder generator writes to `stimuli/real` and `stimuli/fake`; check
+The placeholder generator writes to `stimuli/placeholders/real` and `stimuli/placeholders/fake`; check
 whether those paths hold images you need before invoking it.

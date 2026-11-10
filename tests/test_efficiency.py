@@ -1,6 +1,5 @@
 """Regression checks for deferred I/O, streaming and camera shutdown."""
 import csv
-import importlib.util
 from pathlib import Path
 import tempfile
 import threading
@@ -94,31 +93,6 @@ class EfficiencyTests(unittest.TestCase):
         self.assertEqual(sys.argv, original)
         self.assertIn("--no-break", calls[0])
         self.assertIn("--demo", calls[0])
-
-    def test_manifest_commands_produce_identical_rows(self):
-        root = Path(__file__).parents[1]
-        modules = []
-        for relative in ("dataset/scripts/build_60k_manifest.py", "stimulus-curation/build_manifest.py"):
-            spec = importlib.util.spec_from_file_location("manifest_test", root / relative)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            modules.append(module)
-        with tempfile.TemporaryDirectory() as folder:
-            folder = Path(folder)
-            real, fake = folder / "Real", folder / "Fake"
-            real.mkdir()
-            fake.mkdir()
-            for i in range(3):
-                (real / f"{i}.png").touch()
-                (fake / f"{i}.jpg").touch()
-            outputs = []
-            for i, module in enumerate(modules):
-                output = folder / f"{i}.csv"
-                module.main(["--real-dir", str(real), "--fake-dir", str(fake),
-                             "--sample", "2", "--out", str(output)])
-                outputs.append(output.read_bytes())
-            self.assertEqual(*outputs)
-
 
 if __name__ == "__main__":
     unittest.main()

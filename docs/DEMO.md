@@ -6,9 +6,10 @@ Run from `Diss` with the experiment environment active:
 python demo.py
 ```
 
-The demo uses three real portraits and two generated faces from
-`../Dataset/datasets/picked`. It copies them to `stimuli/demo`, writes
-`data/demo_trials.csv`, and randomises their order during collection.
+The demo selects three real portraits and two OpenAI-generated faces from
+`trials.csv`. Fakes must come from `stimuli/openai_shared_style/`. It uses the
+original image paths, writes `data/demo_trials.csv`, and randomises their order
+during collection. No extra image copies are created.
 
 Enter the participant details and read the instructions, then complete the
 camera preview and calibration in the same window. The portrait check shows

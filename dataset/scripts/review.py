@@ -1,6 +1,6 @@
 """Quick manual review: cut a manifest down to a small set of "good" images.
 
-Loads a manifest CSV (default ``DFR60K_manifest.csv``), shows each image one at
+Loads an explicitly selected manifest CSV, shows each image one at
 a time, and lets you keep or axe it until you have a target number per label.
 
     K / Space  -> keep the image
@@ -50,7 +50,6 @@ except Exception:  # pragma: no cover - headless environments
     _HAS_TK = False
 # Configuration
 HERE = Path(__file__).resolve().parent
-DEFAULT_CSV = HERE.parent / "manifests" / "DFR60K_manifest.csv"
 METADATA_CSV = HERE.parent / "metadata" / "image_metadata.csv"
 OUT_CSV = HERE.parent / "outputs" / "picked.csv"
 PICKED_DIR = common.RAW_DATA_ROOT / "datasets" / "picked"
@@ -519,8 +518,8 @@ class ReviewApp:
 # Main
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Pick good images from a manifest.")
-    parser.add_argument("--csv", default=str(DEFAULT_CSV),
-                        help="source manifest CSV (default: Dataset/DFR60K_manifest.csv)")
+    parser.add_argument("--csv", required=True,
+                        help="source manifest CSV (explicit selection required)")
     parser.add_argument("--per-label", type=int, default=PER_LABEL,
                         help="images to keep per label (default 25 -> 50 total)")
     parser.add_argument("--count", type=int, default=0,

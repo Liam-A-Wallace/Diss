@@ -22,8 +22,8 @@ Run from `Diss`:
 | `python experiment.py --demo` | Full trial list with a gaze dot during image viewing |
 | `python experiment.py --placeholder` | Generate and use cartoon placeholders |
 
-Flags can be combined. The placeholder generator writes to `stimuli/real` and
-`stimuli/fake`; check their contents before using it.
+Flags can be combined. Cartoon test images are isolated under
+`stimuli/placeholders/{real,fake}`; normal runs use the photos in `trials.csv`.
 
 `trials.csv` needs `stimulus`, `condition` and `difficulty` columns. Image paths
 are relative to `Diss`. Optional `practice.csv` uses the same format. Otherwise,

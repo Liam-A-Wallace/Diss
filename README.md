@@ -22,9 +22,11 @@ After approving masks, rerun the analysis to include facial-region dwell and
 transitions. The five-photo demo saves to `data/test`. `--demo` on the full
 experiment means a live gaze dot; use `demo.py` for the shortened experiment.
 
-The normal `trials.csv` still points to the original stimulus paths. Check its
-images before using the full experiment: the five-photo demo prepares its own
-curated photos and does not replace that list.
+`trials.csv` selects the active real photos and OpenAI fakes in
+`stimuli/openai_shared_style/`. The demo selects three real images and two
+OpenAI fakes from this same list, using their original paths without copying
+them into another image folder. The retired DFR60K fake workflow has been
+removed from this workspace. Files in sibling folders were retained.
 
 ## Project folders
 
@@ -37,7 +39,6 @@ curated photos and does not replace that list.
 | `tools/` | Landmark previews and placeholder generation |
 | `docs/` | Demo, experiment and developer guides; cleanup review |
 | `dataset/` | Curation tools, source manifests, metadata and selection outputs |
-| `stimulus-curation/` | Optional image enrichment and an older manifest builder |
 | `tests/` | Regression checks |
 | `stimuli/` | Images shown by the experiment |
 | `data/` | Source recordings and session metadata; retain for analysis |
