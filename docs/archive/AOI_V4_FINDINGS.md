@@ -1,5 +1,8 @@
 # Detailed-v4 geometry checks
 
+Historical validation snapshot from 10 November 2026. Counts and approval
+states below describe that run, not the current dataset or review status.
+
 ## Causes established from the implementation and saved outputs
 
 - V3 used explicit ellipses for all six derived skin regions. Their small

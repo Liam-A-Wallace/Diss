@@ -12,7 +12,6 @@ Run these from `Diss`, with your Python environment active:
 | Five-image demo | `python demo.py` |
 | Full experiment using `trials.csv` | `python experiment.py` |
 | Analyse the latest five-photo/test recording | `python analyse.py --test` |
-| Compare with the earlier strict fixation-link rule | `python analyse.py --test --link-max-gap-ms 100` |
 | Generate facial AOI masks for that recording | `python analyse.py aois --test` |
 | Inspect and approve those masks | `python analyse.py review --test` |
 | Analyse the latest participant recording | `python analyse.py` |
@@ -22,10 +21,12 @@ After approving masks, rerun the analysis to include facial-region dwell and
 transitions. The five-photo demo saves to `data/test`. `--demo` on the full
 experiment means a live gaze dot; use `demo.py` for the shortened experiment.
 
-`trials.csv` selects the active real photos and OpenAI fakes in
-`stimuli/openai_shared_style/`. The demo selects three real images and two
-OpenAI fakes from this same list, using their original paths without copying
-them into another image folder.
+`trials.csv` selects the active real photos and generated images from the shared-style,
+high and extra-high folders. The demo selects three real images and two shared-style
+fakes from that list, using their original paths without copying them.
+The full list contains 15 real and 15 generated images, with one image per pair.
+Real images are local copies in `stimuli/real/`; the picked source set remains
+in the sibling `Dataset` folder.
 
 ## Project folders
 
@@ -56,7 +57,7 @@ raw gaze and display logs without needing that extra export.
 
 ## Guides
 
-- [Five-photo demo and landmark preview](docs/DEMO.md)
+- [Five-image demo and landmark preview](docs/DEMO.md)
 - [Gaze analysis and AOI definitions](analysis/README.md)
 - [Full experiment setup, controls and recording files](docs/EXPERIMENT.md)
 - [Developer guide](docs/DEV_GUIDE.md)

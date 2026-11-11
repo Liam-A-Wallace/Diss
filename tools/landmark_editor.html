@@ -8,6 +8,7 @@
 <label for="images">Face</label><select id="images" disabled></select>
 <div class="row"><button id="previous">Previous</button><button id="next">Next</button></div>
 <label for="editMode">Edit feature</label><select id="editMode"><option value="landmarks">All facial landmarks</option></select><button id="resetRegion">Restore automatic feature</button>
+<small>Overlaps resolve automatically. The last feature you edit takes priority in shared areas.</small>
 <label for="group">Visible landmarks</label><select id="group"><option value="all">All mesh points</option><option value="used">AOI boundary points</option><option value="forehead">Forehead / temples</option><option value="eyes">Lower eyelids</option><option value="cheeks">Cheeks / nose wings</option><option value="chin">Chin / lower lip</option><option value="oval">Face outline</option></select>
 <label><input id="showPoints" type="checkbox" checked> Show landmarks and guides</label>
 <label><input id="showOverlay" type="checkbox" checked> Show AOI overlay</label>
@@ -16,6 +17,8 @@
 <small>Wheel: zoom at cursor. Space + drag or middle mouse: pan. Click a point to select it. Arrow keys: move 1 pixel; Shift: 10 pixels.</small>
 <label for="pointId">Selected point ID</label><input id="pointId" type="number" min="0" max="477" step="1" value="0">
 <div class="row"><label>X<input id="pointX" type="number" step="0.1"></label><label>Y<input id="pointY" type="number" step="0.1"></label></div>
+<div class="row"><button id="addPoint" disabled>Add point</button><button id="removePoint" disabled>Remove point</button></div>
+<small>For a feature contour, Add point inserts a handle halfway between the selected point and the next point. Drag it into place. You can also double-click an edge to add a point, or press Delete to remove one. Contours support 3 to 128 points.</small>
 <div class="row"><button id="undo">Undo</button><button id="redo">Redo</button></div>
 <div class="row"><button id="resetPoint">Reset point</button><button id="resetAll">Reset all</button></div>
 <label for="note">Correction note</label><textarea id="note" rows="2" placeholder="What did you correct and why?"></textarea>
@@ -35,11 +38,12 @@ const guides=[groups.forehead,groups.eyes.slice(0,9),groups.eyes.slice(9),groups
 const canvas=$('canvas'),ctx=canvas.getContext('2d');
 let faces=[],face=null,points=[],original=[],version=null,selected=0,photo=null,overlay=null,undo=[],redo=[],dirty=false;
 let regions={},originalRegions={};
+let regionOrder=[];
 function regionMode(){return $('editMode').value!=='landmarks'}
 function activePoints(){return regionMode()?(regions[$('editMode').value]||originalRegions[$('editMode').value]||[]):points}
-function editablePoints(){if(regionMode()){const side=$('editMode').value;if(!regions[side])regions[side]=clone(originalRegions[side]);return regions[side]}return points}
-function snapshot(){return clone({points,regions})}
-function restore(value){points=value.points;regions=value.regions;selected=Math.min(selected,activePoints().length-1)}
+function editablePoints(){if(regionMode()){const side=$('editMode').value;if(!regions[side])regions[side]=clone(originalRegions[side]);regionOrder=regionOrder.filter(k=>k!==side);regionOrder.push(side);return regions[side]}return points}
+function snapshot(){return clone({points,regions,regionOrder})}
+function restore(value){points=value.points;regions=value.regions;regionOrder=value.regionOrder||Object.keys(regions);selected=Math.min(selected,activePoints().length-1)}
 let scale=1,tx=0,ty=0,drag=null,space=false,revision=0,inflight=false,pending=false,timer=null,loading=false;
 const clone=value=>JSON.parse(JSON.stringify(value));
 function status(message,error=false){$('status').textContent=message;$('status').classList.toggle('error',error)}
@@ -79,8 +83,9 @@ api('/api/images').then(result=>{faces=result;if(!faces.length)throw Error('No g
 // as landmark edits. Overrides are explicit; merely selecting a feature is inert.
 const request=api;
 api=async function(path,body){
-  if(body&&(path==='/api/preview'||path==='/api/save'))body.regions=clone(regions);
+  if(body&&(path==='/api/preview'||path==='/api/save')){body.regions=clone(regions);body.region_order=regionOrder.filter(k=>k in regions);for(const k of Object.keys(regions))if(!body.region_order.includes(k))body.region_order.push(k)}
   const result=await request(path,body);
+  if(path.startsWith('/api/state/'))regionOrder=clone(result.region_order||Object.keys(result.regions));
   if(path.startsWith('/api/state/')){originalRegions=clone(result.original_regions);regions=clone(result.regions);const mode=$('editMode');mode.replaceChildren();const mesh=document.createElement('option');mesh.value='landmarks';mesh.textContent='All facial landmarks';mode.append(mesh);for(const [id,name] of Object.entries(result.labels)){if(+id<1||+id>24)continue;const option=document.createElement('option');option.value=id;option.textContent=name.replaceAll('_',' ');mode.append(option)}mode.value='landmarks'}
   return result;
 };
@@ -97,6 +102,23 @@ draw=function(){
   ctx.restore();
 };
 $('editMode').onchange=()=>{endDrag();selected=0;$('resetPoint').textContent=regionMode()?'Restore feature':'Reset point';sync();draw()};
+const syncPoints=sync;
+sync=function(){
+  syncPoints();
+  const editing=!!face&&!loading&&regionMode(),count=editing?activePoints().length:0;
+  $('addPoint').disabled=!editing||count>=128;
+  $('removePoint').disabled=!editing||count<=3;
+};
+$('addPoint').onclick=()=>{
+  if(!face||loading||!regionMode()||activePoints().length>=128)return;
+  checkpoint();const p=editablePoints(),a=p[selected],b=p[(selected+1)%p.length];
+  p.splice(selected+1,0,[(a[0]+b[0])/2,(a[1]+b[1])/2]);selected++;
+  $('showPoints').checked=true;changed();
+};
+$('removePoint').onclick=()=>{
+  if(!face||loading||!regionMode()||activePoints().length<=3)return;
+  checkpoint();const p=editablePoints();p.splice(selected,1);selected=Math.min(selected,p.length-1);changed();
+};
 // Capture contour events before the original mesh handlers.
 canvas.addEventListener('pointerdown',e=>{
   if(!regionMode()||space||e.button===1)return;

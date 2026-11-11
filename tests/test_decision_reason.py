@@ -3,6 +3,7 @@
 import ast
 import importlib.util
 from pathlib import Path
+import time
 import types
 import unittest
 from unittest.mock import Mock, patch
@@ -119,6 +120,7 @@ class DecisionReasonTests(unittest.TestCase):
 
         noop = lambda *args, **kwargs: None
         namespace = dict(
+            time=time,
             visual=types.SimpleNamespace(ImageStim=noop),
             text=noop,
             TRIAL_NUMBER_POS=(0, 0),

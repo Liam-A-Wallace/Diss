@@ -1,4 +1,4 @@
-﻿# Five-image demo
+# Five-image demo
 
 Run from `Diss` with the experiment environment active:
 
@@ -6,10 +6,9 @@ Run from `Diss` with the experiment environment active:
 python demo.py
 ```
 
-The demo selects three real portraits and two OpenAI-generated faces from
-`trials.csv`. Fakes must come from `stimuli/openai_shared_style/`. It uses the
-original image paths, writes `data/demo_trials.csv`, and randomises their order
-during collection. No extra image copies are created.
+The demo selects three real images and two shared-style generated images from
+`trials.csv`. It saves to `data/test`, skips practice and the break, and randomises
+the five images during collection.
 
 Enter the participant details and read the instructions, then complete the
 camera preview and calibration in the same window. The portrait check shows
@@ -35,13 +34,23 @@ then generate and inspect the masks:
 
 ```powershell
 python -m pip install -r requirements-aois.txt
-python analyse.py aois --test
-python analyse.py review --test
-python analyse.py --test
+python analyse.py aois --detailed --test
+python analyse.py review --detailed --test
+python analyse.py --detailed --test
 ```
 
 Approve the masks after checking the overlays. Gaze plots also work without
 masks; region labels will be `unmapped`.
+
+To correct landmarks or feature contours in the web editor:
+
+```powershell
+python analyse.py edit --detailed --test
+```
+
+Save in the browser, then run `python analyse.py review --manual --test`
+and `python analyse.py --manual --test` to review and use the corrections.
+See [editor controls](DETAILED_AOIS.md#manually-correct-individual-landmarks-and-features).
 
 ## Other commands
 

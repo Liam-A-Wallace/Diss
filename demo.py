@@ -1,4 +1,4 @@
-﻿"""Five-photo pilot: python demo.py [--prepare] [--gaze-dot]."""
+"""Five-image demo: python demo.py [--prepare] [--gaze-dot]."""
 
 import argparse
 import csv
@@ -12,42 +12,30 @@ def prepare():
     metadata = ROOT / "trials.csv"
     with metadata.open(newline="", encoding="utf-8-sig") as f:
         rows = list(csv.DictReader(f))
-    pools = {
-        label: [
-            r
-            for r in rows
-            if r["condition"].lower() == label
-            and (
-                label != "fake"
-                or Path(r["stimulus"])
-                .as_posix()
-                .startswith("stimuli/openai_shared_style/")
-            )
-        ]
-        for label in ("real", "fake")
-    }
     chosen, seen = [], set()
     for label in ("real", "fake", "real", "fake", "real"):
-        for row in pools[label]:
+        for row in rows:
             source = ROOT / row["stimulus"]
             key = str(source.resolve()).casefold()
+            if row["condition"].lower() != label:
+                continue
+            if label == "fake" and not Path(row["stimulus"]).as_posix().startswith(
+                "stimuli/openai_shared_style/"
+            ):
+                continue
             if key not in seen and source.is_file():
-                chosen.append(
-                    dict(stimulus=row["stimulus"], condition=label, difficulty="")
-                )
+                chosen.append(dict(row))
                 seen.add(key)
                 break
         else:
-            raise ValueError(
-                "Demo needs three real images and two OpenAI fakes in trials.csv."
-            )
+            raise ValueError("Demo needs three real images and two shared-style fakes.")
     target = ROOT / "data" / "demo_trials.csv"
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(chosen[0]))
         writer.writeheader()
         writer.writerows(chosen)
-    print("Five-photo list:", target)
+    print("Five-image demo list:", target)
     for row in chosen:
         print(" ", row["stimulus"])
     return target

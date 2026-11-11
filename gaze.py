@@ -156,10 +156,14 @@ class GazeRecorder:
         # reports calibrated gaze in; captured once after the tracker is built
         self.screen_size = None
 
-    def init(self):
+    def init(self, screen_size=None):
         # Initialise tracking before collection; calibration uses the experiment window.
         # Set this before construction: the calibration controller copies it.
         cfg = DefaultConfig()
+        if screen_size is not None:
+            # Calibration targets and gaze coordinates must use the same pixels.
+            cfg.screen_size = cfg.screen_size.copy()
+            cfg.screen_size[:] = [int(v) for v in screen_size]
         cfg.cali_mode = CALIBRATION_POINTS
         cfg.enable_face_filter = ENABLE_FACE_FILTER
         gaze_filter = (

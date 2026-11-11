@@ -16,6 +16,8 @@ Eight fixed cases (four real, four OpenAI-generated) cover earlier reported
 eye/brow failures, glasses, unequal eye coverage and high uncertainty. This is
 a failure-case study, not a representative estimate of model performance.
 The selection and reasons are recorded in `selection.csv`.
+Selections reference filenames whose contents may change; compare saved image
+hashes before comparing a new run with the [historical findings](archive/AOI_DIAGNOSTIC_FINDINGS.md).
 
 For each image the report compares:
 

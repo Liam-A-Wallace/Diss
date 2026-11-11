@@ -441,13 +441,7 @@ def explanation_screen(win, mouse, response, counter):
         event.clearEvents()
 
 
-def run_ready(win, fixation, gaze):
-    """Self-paced ready cross. Returns the measured drift in px (or None).
-
-    Blocks until the tracker has fresh gaze. If gaze sits far from the cross,
-    the first ENTER shows a recalibrate prompt; a second ENTER continues.
-    """
-    win.mouseVisible = False
+def _build_ready_stims(win):
     hint = text(
         win,
         "Press ENTER or SPACE when ready   •   R to recalibrate",
@@ -470,34 +464,53 @@ def run_ready(win, fixation, gaze):
     gaze_dot = visual.Circle(
         win, radius=10, units="pix", fillColor="#00e5ff", lineColor="black", lineWidth=2
     )
+    return hint, status, ring, gaze_dot
+
+
+def run_ready(win, fixation, gaze):
+    """Self-paced ready cross. Returns the measured drift in px (or None).
+
+    Blocks until the tracker has fresh gaze. If gaze sits far from the cross,
+    the first ENTER shows a recalibrate prompt; a second ENTER continues.
+    """
+    win.mouseVisible = False
+    if not hasattr(win, "_diss_ready_stims"):
+        win._diss_ready_stims = _build_ready_stims(win)
+    hint, status, ring, gaze_dot = win._diss_ready_stims
     event.clearEvents()
     floor = core.Clock()
     drift_warned = False
     drift = None
     last_status = None
+    first_frame = True
+    first_fresh = True
 
     while True:
         sample = gaze.poll()
         fresh = sample is not None and gaze.recent_gaze(GAZE_READY_WINDOW)
+        if fresh and first_fresh:
+            print(f"[timing] ready screen: fresh gaze after {floor.getTime():.2f}s")
+            first_fresh = False
         drift = gaze.drift_px(DRIFT_WINDOW_S)
         # Refresh the tracking status each frame.
         if gaze.seconds_since_valid() > FACE_LOST_AFTER:
-            status.text = (
+            message = (
                 "Eye tracker cannot see you — please face the "
                 "camera and keep your head still"
             )
         elif drift_warned:
-            status.text = (
+            message = (
                 "Gaze looks off-centre. Press R to recalibrate, "
                 "or ENTER to continue anyway"
             )
         else:
-            status.text = "Blue dot = your gaze. Look at the centre cross."
+            message = "Blue dot = your gaze. Look at the centre cross."
 
-        if status.text != last_status:
+        if message != last_status:
+            status.text = message
             status.height = 0.026
             fit_text(status, 1.0, 0.08)
-            last_status = status.text
+            last_status = message
 
         ready = floor.getTime() >= FIXATION_DURATION and gaze.recent_gaze(
             GAZE_READY_WINDOW
@@ -520,6 +533,10 @@ def run_ready(win, fixation, gaze):
         hint.draw()
         status.draw()
         win.flip()
+
+        if first_frame:
+            print(f"[timing] ready screen: first frame after {floor.getTime():.2f}s")
+            first_frame = False
 
         keys = event.getKeys(keyList=["return", "num_enter", "space", "escape", "r"])
         if "escape" in keys:

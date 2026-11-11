@@ -39,6 +39,10 @@ class RevisionTests(unittest.TestCase):
         factory = lambda kind, component, kwargs: calls.append((component, kwargs))
         worker = types.SimpleNamespace(create_component=factory)
 
+        class FakeCamera:
+            def __init__(self, **kwargs):
+                calls.append(("camera", kwargs))
+
         def run(*args):
             worker.create_component("mgazenet", "gaze_estimator")
             worker.create_component("webcam", "camera", {"webcam_id": 1})
@@ -53,7 +57,7 @@ class RevisionTests(unittest.TestCase):
                 "gazefollower": types.ModuleType("gazefollower"),
                 "gazefollower.multiprocess": types.SimpleNamespace(mp_worker=worker),
                 "gazefollower.camera": types.SimpleNamespace(
-                    WebCamCamera=lambda **kw: calls.append(("camera", kw))
+                    WebCamCamera=FakeCamera
                 ),
             },
         ):

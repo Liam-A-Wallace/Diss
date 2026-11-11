@@ -4,6 +4,41 @@ import threading
 import time
 
 
+def session_camera_class(base):
+    """Keep the worker's hardware open across SDK sampling/calibration modes.
+
+    SDK stop methods still switch to CLOSING, so inference pauses while idle.
+    The capture thread keeps draining frames until the worker releases it.
+    Preview cameras in the UI process retain their normal close semantics.
+    """
+    class SessionCamera(base):
+        def open(self):
+            if self._cap.isOpened():
+                return
+            from gazefollower.logger import Log
+
+            Log.i("[camera lifecycle] Opening tracking webcam hardware")
+            super().open()
+
+        def close(self):
+            from gazefollower.logger import Log
+            from gazefollower.misc import CameraRunningState
+
+            # Finish the current callback before the SDK disposes of its stream.
+            # Set the idle state under the same lock so no new sample can start.
+            with self.callback_and_param_lock:
+                self.camera_running_state = CameraRunningState.CLOSING
+            Log.i("[camera lifecycle] SDK mode stopped; keeping tracking webcam open")
+
+        def release(self):
+            from gazefollower.logger import Log
+
+            Log.i("[camera lifecycle] Releasing tracking webcam hardware at shutdown")
+            stop_camera(self)
+
+    return SessionCamera
+
+
 def stop_camera(camera, timeout=2.0):
     """Shared SDK close/release adapter; capture owns release while active.
 

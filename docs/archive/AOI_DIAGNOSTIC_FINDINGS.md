@@ -6,6 +6,10 @@ one detected MediaPipe face. Sixteen parser inferences compared the same model
 at 512 and 1024 input resolution. Each prediction was compared at confidence
 thresholds 0.4, 0.5 and 0.6. Production code, masks and reviews were unchanged.
 
+Historical snapshot: image names refer to the files used on 10 November 2026.
+`real_003` has since been replaced, and the active demo and trial list have
+changed. These observations and measurements do not describe the replacement.
+
 ## Measured retention
 
 At 512 input, the proportion of raw class-labelled pixels surviving each cutoff
@@ -90,5 +94,5 @@ repair glasses/eye competition or other raw class-placement errors. Pooled
 full-frame 512. There is no evidence here to switch production inference to
 face crops.
 
-The current masks retain the 0.6 cutoff. See [detailed AOI definitions](DETAILED_AOIS.md)
+The current masks retain the 0.6 cutoff. See [detailed AOI definitions](../DETAILED_AOIS.md)
 for the skin-region geometry used in detailed-v4.

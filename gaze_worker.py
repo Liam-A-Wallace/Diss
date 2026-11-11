@@ -18,8 +18,9 @@ def worker_entry(*args, model_path, lock_exposure, exposure):
             options["model_path"] = model_path
         if comp_kind == "camera":
             from gazefollower.camera import WebCamCamera
+            from camera_capture import session_camera_class
 
-            return WebCamCamera(
+            return session_camera_class(WebCamCamera)(
                 webcam_id=options.get("webcam_id", 0),
                 lock_exposure=lock_exposure,
                 exposure=exposure,

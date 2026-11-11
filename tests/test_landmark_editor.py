@@ -138,6 +138,21 @@ class EditorTests(unittest.TestCase):
                 )
                 self.assertEqual(int(mask[10, 10]), label)
 
+    def test_changed_mapping_opens_without_regeneration(self):
+        baseline=(self.source/"manifest.json").read_bytes()
+        (self.root/"analysis/detailed_aois.py").write_text("updated mapping")
+        editor=Editor(self.source,self.output)
+        key=self.ids[0]
+        state=editor.state(key)
+        mask,flags,_=editor.render(key,state["points"])
+        np.testing.assert_array_equal(mask,editor.load(key)[3])
+        self.assertTrue(any("differs from generation" in f for f in flags))
+        editor.save(key,state["points"],None)
+        correction=json.loads((self.output/(key+"_correction.json")).read_text())
+        self.assertEqual(correction["editor_geometry_sha256"],sha256(self.root/"analysis/detailed_aois.py"))
+        self.assertNotEqual(correction["editor_geometry_sha256"],correction["geometry_sha256"])
+        self.assertEqual((self.source/"manifest.json").read_bytes(),baseline)
+
     def test_landmark_changes_do_not_change_primary_masks(self):
         key = self.ids[0]
         points = self.points.copy()
@@ -176,10 +191,20 @@ class EditorTests(unittest.TestCase):
         self.assertTrue(any("protect" in f for f in flags))
         self.assertEqual(int(mask[21, 21]), 6)
 
-    def test_crossed_or_overlapping_regions_are_rejected(self):
+    def test_overlaps_resolve_by_priority_and_crossed_contours_are_rejected(self):
         polygon = [[20, 20], [40, 20], [40, 30], [20, 30]]
-        with self.assertRaisesRegex(ValueError, "overlap"):
-            self.editor.render(self.ids[0], self.points, {"6": polygon, "7": polygon})
+        overrides={"6":polygon,"7":polygon}
+        mask,flags,_=self.editor.render(self.ids[0],self.points,overrides,["6","7"])
+        self.assertEqual(int(mask[25,30]),7)
+        self.assertTrue(any("resolved automatically" in flag for flag in flags))
+        other,_,_=self.editor.render(self.ids[0],self.points,overrides,["7","6"])
+        self.assertEqual(int(other[25,30]),6)
+        self.editor.save(self.ids[0],self.points.tolist(),None,"Overlapping regions",overrides,["7","6"])
+        self.assertEqual(self.editor.state(self.ids[0])["region_order"],["7","6"])
+        with Image.open(self.output/(self.ids[0]+".png")) as saved:
+            np.testing.assert_array_equal(np.asarray(saved),other)
+        with self.assertRaisesRegex(ValueError,"priority"):
+            self.editor.render(self.ids[0],self.points,overrides,["7","7"])
         with self.assertRaises(ValueError):
             self.editor.render(
                 self.ids[0],

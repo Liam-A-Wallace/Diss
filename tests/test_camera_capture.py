@@ -4,12 +4,68 @@ import threading
 import time
 import types
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
-from camera_capture import capture_latest, stop_camera
+from camera_capture import capture_latest, session_camera_class, stop_camera
 
 
 class CameraCaptureTests(unittest.TestCase):
+    def test_mode_close_waits_for_callback_and_keeps_hardware_open(self):
+        entered = threading.Event()
+        resume = threading.Event()
+        stopping = threading.Event()
+        stopped = threading.Event()
+        samples = []
+
+        class Camera:
+            def __init__(self):
+                self.callback_and_param_lock = threading.Lock()
+                self.camera_running_state = "sampling"
+                self._cap = types.SimpleNamespace(release=Mock())
+
+            def stop_sampling(self):
+                self.close()
+                self.camera_running_state = "closing"
+
+        camera = session_camera_class(Camera)()
+
+        def callback():
+            with camera.callback_and_param_lock:
+                entered.set()
+                resume.wait(2)
+                samples.append("final sample and trigger")
+
+        def stop():
+            stopping.set()
+            camera.stop_sampling()
+            stopped.set()
+
+        with patch.dict("sys.modules", {
+            "gazefollower.logger": types.SimpleNamespace(
+                Log=types.SimpleNamespace(i=lambda message: None)
+            ),
+            "gazefollower.misc": types.SimpleNamespace(
+                CameraRunningState=types.SimpleNamespace(CLOSING="closing")
+            ),
+        }):
+            processing = threading.Thread(target=callback)
+            closing = threading.Thread(target=stop)
+            processing.start()
+            try:
+                self.assertTrue(entered.wait(2))
+                closing.start()
+                self.assertTrue(stopping.wait(2))
+                self.assertFalse(stopped.wait(0.05))
+            finally:
+                resume.set()
+                processing.join(2)
+                closing.join(2)
+            self.assertTrue(stopped.is_set())
+            camera._cap.release.assert_not_called()
+            self.assertEqual(samples, ["final sample and trigger"])
+            with camera.callback_and_param_lock:
+                self.assertEqual(camera.camera_running_state, "closing")
+
     def test_stalled_callback_releases_camera_but_blocks_model_cleanup(self):
         entered = threading.Event()
         resume = threading.Event()

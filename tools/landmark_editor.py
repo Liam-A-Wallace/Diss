@@ -32,10 +32,10 @@ class Editor:
         )
         if self.base.get("schema_version") != "detailed-v4":
             raise ValueError("Generate detailed-v4 AOIs before editing")
-        if self.base["geometry_sha256"] != sha256(ROOT / "analysis/detailed_aois.py"):
-            raise ValueError(
-                "Mapping code changed since generation; regenerate a matching version before editing"
-            )
+        if {int(k): v for k, v in self.base["labels"].items()} != LABELS:
+            raise ValueError("The saved label schema is incompatible with this editor")
+        self.geometry_sha256 = sha256(ROOT / "analysis/detailed_aois.py")
+        self.geometry_changed = self.base["geometry_sha256"] != self.geometry_sha256
         self.config = json.loads((ROOT / "models/face-parsing/config.json").read_text())
         self.cache = {}
 
@@ -83,11 +83,13 @@ class Editor:
                 "Automatic mask changed since this correction; resolve the conflict before editing"
             )
         regions = self.region_contours(key)
+        overrides=(correction.get("regions",{str(6+int(k)):v for k,v in correction.get("brows",{}).items()}) if correction else {})
         return dict(
             points=correction["points"] if correction else original.tolist(),
             original_points=original.tolist(),
             version=sha256(path) if correction else None,
             original_regions=regions,
+            region_order=correction.get("region_order",list(overrides)) if correction else [],
             regions=(
                 correction.get(
                     "regions",
@@ -140,7 +142,7 @@ class Editor:
             ).tolist()
         return result
 
-    def apply_regions(self, key, mask, regions):
+    def apply_regions(self, key, mask, regions, region_order=None):
         import cv2
 
         if not isinstance(regions, dict) or set(regions) - {
@@ -148,6 +150,9 @@ class Editor:
         }:
             raise ValueError("Unknown region override")
         polygons = {}
+        order=list(regions) if region_order is None else region_order
+        if not isinstance(order,list) or any(not isinstance(k,str) for k in order) or len(order)!=len(set(order)) or set(order)!=set(regions):
+            raise ValueError("Region priority must list each edited region once")
         r = self.record(key)
         for side, vertices in regions.items():
             p = np.asarray(vertices, dtype=float)
@@ -189,21 +194,25 @@ class Editor:
             ImageDraw.Draw(image).polygon([tuple(q) for q in p], fill=1)
             polygons[side] = np.asarray(image) > 0
         combined = np.zeros(mask.shape, dtype=bool)
+        overlaps = False
         for region in polygons.values():
             if np.any(combined & region):
-                raise ValueError("Region contours overlap")
+                overlaps = True
             combined |= region
         flags = []
+        if overlaps:
+            flags.append("Overlapping contours resolved automatically: most recently edited feature takes priority")
         for label in polygons:
             mask[mask == int(label)] = 255
-        for label, region in polygons.items():
-            allowed = np.isin(mask, [0, 1, 19, 20, 21, 22, 23, 24, 255])
+        allowed = np.isin(mask, [0, 1, 19, 20, 21, 22, 23, 24, 255])
+        for label in order:
+            region=polygons[label]
             if np.any(region & ~allowed):
                 flags.append("Region contour clipped to protect other primary features")
             mask[region & allowed] = int(label)
         return flags
 
-    def render(self, key, points, regions=None):
+    def render(self, key, points, regions=None, region_order=None):
         original, raw, confidence, automatic = self.load(key)
         points = np.asarray(points, dtype=float)
         record = self.record(key)
@@ -220,19 +229,18 @@ class Editor:
             raise ValueError("Landmarks must stay within the image")
         if not np.array_equal(points[:, 2], original[:, 2]):
             raise ValueError("Only image x/y coordinates are editable")
-        mask, flags = build_regions(
-            raw,
-            confidence,
-            self.config["id2label"],
-            points,
-            self.base["min_confidence"],
-        )
+        if not np.any(moved):
+            mask, flags = automatic.copy(), list(record.get("notes", []))
+        else:
+            mask, flags = build_regions(raw, confidence, self.config["id2label"], points, self.base["min_confidence"])
+        if self.geometry_changed:
+            flags.append("Mapping code differs from generation. Unmoved landmarks retain the saved mask; moving landmarks recomputes derived regions with current code.")
         # Landmark changes affect derived skin regions only. Preserve parser
         # detections and their original sided assignment, including uncertainty.
         fixed = ((automatic < 19) & (automatic != 1)) | (automatic == 255)
         mask[fixed] = automatic[fixed]
         if regions is not None:
-            flags += self.apply_regions(key, mask, regions)
+            flags += self.apply_regions(key, mask, regions, region_order)
         changed = int(np.any(points[:, :2] != original[:, :2], axis=1).sum())
         return mask, flags, changed
 
@@ -250,7 +258,7 @@ class Editor:
         Image.fromarray(colours[mask]).save(buffer, format="PNG")
         return base64.b64encode(buffer.getvalue()).decode()
 
-    def save(self, key, points, version, note="", regions=None):
+    def save(self, key, points, version, note="", regions=None, region_order=None):
         if not isinstance(note, str) or len(note) > 4000:
             raise ValueError("Correction note must be at most 4000 characters")
         self.state(key)  # check original input and parent consistency
@@ -258,7 +266,7 @@ class Editor:
         current = sha256(correction_path) if correction_path.exists() else None
         if version != current:
             raise ValueError("Another editor saved this image. Reload before saving")
-        mask, flags, changed = self.render(key, points, regions)
+        mask, flags, changed = self.render(key, points, regions, region_order)
         record = copy.deepcopy(self.record(key))
         self.output.mkdir(parents=True, exist_ok=True)
         output_manifest = self.output / "manifest.json"
@@ -288,6 +296,8 @@ class Editor:
             points=points,
             note=note,
             regions=regions or {},
+            region_order=list(regions or {}) if region_order is None else region_order,
+            overlap_policy="last_edited_wins",
             modified_landmarks=changed,
             saved_at=datetime.now(timezone.utc).isoformat(),
             stimulus_sha256=key,
@@ -295,6 +305,7 @@ class Editor:
             automatic_landmarks_sha256=sha256(self.source / record["landmarks"]),
             parser_sha256=sha256(self.source / (key + "_parser.npz")),
             geometry_sha256=self.base["geometry_sha256"],
+            editor_geometry_sha256=self.geometry_sha256,
         )
         # Stage every artifact, then publish the manifest last. A crash cannot
         # leave a newly written mask carrying an old approval.
@@ -306,6 +317,7 @@ class Editor:
             correction=correction_path.name,
             landmarks=key + "_landmarks.csv",
             manual_modified_landmarks=changed,
+            editor_geometry_sha256=self.geometry_sha256,
         )
         record["manual_region_labels"] = list((regions or {}).keys())
         record["manual_label_sources"] = {
@@ -422,7 +434,7 @@ def serve(source, output, open_browser=True):
                 key = data["id"]
                 if self.path == "/api/preview":
                     mask, flags, changed = editor.render(
-                        key, data["points"], data.get("regions")
+                        key, data["points"], data.get("regions"), data.get("region_order")
                     )
                     return self.reply(
                         200, dict(mask=editor.png(mask), flags=flags, changed=changed)
@@ -436,6 +448,7 @@ def serve(source, output, open_browser=True):
                             data.get("version"),
                             data.get("note", ""),
                             data.get("regions"),
+                            data.get("region_order"),
                         ),
                     )
                 self.reply(404, {"error": "Unknown route"})

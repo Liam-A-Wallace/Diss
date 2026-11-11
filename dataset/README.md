@@ -1,7 +1,9 @@
 ﻿# Dataset records and optional tools
 
-The experiment uses `../trials.csv`. Its fake images are OpenAI images in
-`../stimuli/openai_shared_style/`. The demo selects from the same trial list.
+The experiment uses `../trials.csv`: 15 real images from `../stimuli/real/`
+and 15 generated images (10 shared-style, 3 high, 2 extra-high). Each pair
+contributes one A or B image. High uses pairs 001-003; extra-high uses 004-005.
+The demo selects three real images and two shared-style fakes from this list.
 No curation/export command is needed for ordinary collection or analysis.
 
 `outputs/picked.csv`, `outputs/review_log.csv` and metadata retain historical

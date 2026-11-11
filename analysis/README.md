@@ -18,7 +18,7 @@ python analyse.py
 
 This selects the latest participant session, saves the tables and plots, and opens a local results page in your browser. Results go in processed/SESSION_NAME; repeating the command creates a numbered folder and preserves earlier results. The terminal prints the selected session and output location.
 
-For a run collected with experiment.py --test:
+For a demo or a run collected with `experiment.py --test`:
 
 ~~~powershell
 python analyse.py --test
@@ -90,7 +90,13 @@ Practice and interrupted trials are explicitly flagged. Trials with no gaze samp
 
 ## Recording files and coordinate conventions
 
-The normal experiment automatically saves _gaze_image.csv, _display.jsonl and _session.json alongside the existing raw gaze, trial-window and behavioural files. Display changes are stamped in flip callbacks. Original image pixels have a top-left origin, +x right and +y down; image_u/image_v divide by original dimensions. usable=1 means a valid, finite, nonduplicate sample on the visible image. Off-image gaze is never clamped to its edges.
+The experiment automatically saves `_display.jsonl` and `_session.json` alongside
+raw gaze, trial-window and behavioural files. `_gaze_image.csv` is optional
+(`--export-image-gaze`); normal analysis reconstructs image coordinates from the
+raw gaze and display logs. Display changes are stamped in flip callbacks.
+Original image pixels have a top-left origin, +x right and +y down;
+image_u/image_v divide by original dimensions. usable=1 means a valid, finite,
+nonduplicate sample on the visible image. Off-image gaze is never clamped.
 
 Default analysis uses calibrated screen coordinates. Filtered coordinates remain available for sensitivity analysis because filtering introduces temporal lag. Webcam timestamps are recorded after camera read, so camera exposure and physical display timing remain unmeasured. Collection currently requires fullscreen on the primary calibration monitor.
 

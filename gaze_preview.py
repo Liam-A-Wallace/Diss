@@ -132,6 +132,8 @@ class PreparedPreview:
         image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         with self._lock:
             self._raw_frame = image
+        # Show the preview as soon as actual camera frames arrive.
+        self._ready.set()
 
     def _on_frame(self, alignment, timestamp, frame):
         import cv2
@@ -166,7 +168,7 @@ class PreparedPreview:
     def check_ready(self):
         if self._error is not None:
             raise RuntimeError("Camera preview preparation failed") from self._error
-        if not self._ready.is_set() and time.monotonic() - self._started_at > 30:
+        if not self._ready.is_set() and time.monotonic() - self._started_at > 90:
             raise RuntimeError("Timed out waiting for the first camera preview frame")
         return self._ready.is_set()
 

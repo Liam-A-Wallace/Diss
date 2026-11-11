@@ -34,7 +34,7 @@ and lower jaw. Cheeks follow each side's face outline, eye corners, nasal wing
 and mouth corner landmarks. Existing parser features and uncertain pixels
 are never overwritten. Remaining perioral skin can stay other_skin. These
 boundaries are operational AOI definitions, not learned anatomy. See
-[v4 investigation and validation](AOI_V4_FINDINGS.md).
+[historical v4 investigation and validation](archive/AOI_V4_FINDINGS.md).
 The unchanged 0.6 cutoff applies to all parser classes. Missing eyes, brows,
 nose or mouth, fragmented side labels, insufficient skin and unsupported pose
 are recorded as review flags. Eye/parser disagreement withholds that side's
@@ -50,8 +50,11 @@ gaze analysis reports detailed labels and does not also count parent labels.
 Run `python analyse.py edit --detailed --test`. Select **All facial landmarks**
 for the complete mesh, or choose any facial feature in **Edit feature** to move
 its individual contour points. Every AOI uses the same controls: drag handles,
-arrow keys, zoom, undo/redo and reset. Double-click an edge to add a handle;
-Delete removes the selected handle. Save corrections, then run
+arrow keys, zoom, undo/redo and reset. **Add point** inserts a handle between
+the selected point and the next point; drag it to fit the feature. You can also
+double-click an edge to add a handle. **Remove point** or Delete removes the
+selected handle. Contours support 3 to 128 points, including the four-point
+placeholder used for missing features. Save corrections, then run
 `python analyse.py review --manual --test` and
 `python analyse.py --manual --test`.
 
@@ -59,8 +62,11 @@ A feature's starting contour follows its largest detected component. If the
 feature is missing, a small central starting contour is provided for manual
 placement. Selecting it alone changes nothing. Editing replaces the selected
 label's mask; vacated pixels become uncertain. Other primary features are
-protected from accidental painting, and overlapping manual contours are
-rejected. Each saved mask remains a non-overlapping label partition.
+protected from accidental painting. Overlapping manual contours resolve
+automatically: the most recently edited feature wins shared pixels. The edit
+priority is saved and restored with corrections and undo/redo. Handles may
+overlap, but every saved mask pixel still has exactly one label. Self-crossing
+individual contours still need correction.
 Existing saved corrections are loaded, and all corrections require review.
 Save your work before stopping an older editor with Ctrl+C; restart the edit
 command and refresh the page to load these controls.

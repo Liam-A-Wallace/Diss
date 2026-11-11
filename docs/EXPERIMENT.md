@@ -48,7 +48,8 @@ subjective check, not a measured accuracy validation.
 
 ## Trial controls
 
-The full experiment has practice trials, the main task and a halfway break.
+The full experiment currently has 30 main trials, no practice trials
+(`PRACTICE_TRIALS=0`) and a halfway break. Adjust these defaults in `config.py`.
 The five-image demo skips normal practice and the break. Each trial has a ready
 cross, image viewing, real/fake classification, confidence rating from 1 to 5,
 and an optional text box asking what led to the participant's decision. Click
@@ -99,6 +100,7 @@ Each session in `data/` (or `data/test/`) produces:
 | `_display.jsonl` | Image positions, scales and display changes |
 | `_session.json` | Session details, settings and image hashes |
 | `_calibration_checks.jsonl` | Portrait-check outcomes |
+| `_error.txt` | Traceback saved if the session fails |
 | `.psydat` | PsychoPy session pickle |
 
 Keep source recordings, timing sidecars and stimulus images together.

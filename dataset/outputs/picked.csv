@@ -1,7 +1,7 @@
 image_id,image_url,label,label_numeric,category,gender,age_group,source,fake_method,image_quality,resolution,confidence_score,detection_difficulty,dataset_split,date_collected,version,year,source_dataset,picked_file
 dfr60k_real_0001_(14657),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (14657).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_001.png
 dfr60k_real_0001_(13887),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (13887).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_002.png
-dfr60k_real_0001_(12582),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (12582).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_003.png
+dfr60k_real_0001_(100),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (100).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_003.png
 dfr60k_real_0001_(13051),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (13051).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_004.png
 dfr60k_real_0001_(14517),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (14517).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_005.png
 dfr60k_real_0001_(14679),Dataset/datasets/Deepfake-vs-Real-60K/deepfake-vs-real-60k/Real/0001 (14679).png,REAL,1,,,,Deepfake-vs-Real-60K,,,,,,,2026-10-06,v1.0,2026,dfr60k,datasets/picked/real/real_006.png

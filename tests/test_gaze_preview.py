@@ -169,7 +169,7 @@ class PreviewTests(unittest.TestCase):
     def test_missing_frame_times_out(self):
         preview = self.create()
         with patch(
-            "gaze_preview.time.monotonic", return_value=preview._started_at + 31
+            "gaze_preview.time.monotonic", return_value=preview._started_at + 91
         ):
             with self.assertRaisesRegex(RuntimeError, "first camera preview frame"):
                 preview.check_ready()
@@ -202,7 +202,7 @@ class PreviewTests(unittest.TestCase):
                     self.camera._preview_frame_callback(2, "new")
                 preview.ui.backend.before_draw()
                 self.assertEqual(preview.ui.frame_image, "rgb:new")
-                self.assertFalse(preview.check_ready())
+                self.assertTrue(preview.check_ready())
             finally:
                 finish.set()
                 worker.join(1)

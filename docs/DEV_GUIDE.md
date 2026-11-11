@@ -13,7 +13,8 @@ in `../Dataset`. SDK overrides belong in `gaze_worker.py` and
 | `demo.py` | Five curated images, with output under `data/test` |
 | `config.py` | Display, camera, exposure, timing and calibration settings |
 | `gaze.py` | Tracker setup, sampling, calibration, drift checks and exports |
-| `gaze_worker.py` | Passes the chosen model and exposure settings to the worker |
+| `gaze_worker.py` | Configures worker model, exposure and persistent camera capture |
+| `camera_capture.py` | Drains camera frames, handles capture lifetime and safe shutdown |
 | `gaze_preview.py` | Prepares the first camera preview in the background during Welcome |
 | `gazefollower_patch.py` | Adds exposure control to the SDK camera |
 | `calibration_check.py` | Portrait and gaze dot shown after calibration |
@@ -34,7 +35,7 @@ image outside the planned trials, with a practice/task image as a fallback.
 Outcomes are logged separately in `_calibration_checks.jsonl`.
 
 A trial loads its image before the ready cross, then runs image viewing,
-classification, confidence rating and the interval between trials. The cross
+classification, confidence rating, optional explanation and the interval between trials. The cross
 shows a live gaze dot. The first attempt to continue with large drift gives a
 warning; a second attempt can override it. R recalibrates and repeats the check.
 
@@ -67,8 +68,9 @@ prevent reconstruction.
 reports. Each report has a `data_results/` folder for its CSVs. These folders
 and image/model assets are ignored by Git.
 
-The current selection tool is `dataset/scripts/review.py`. `export_to_diss.py`
-checks sources and stages copies before replacing the experiment set.
+The optional selection tool is `dataset/scripts/review.py`. The historical
+`export_to_diss.py` can replace the trial list; do not run it for the current
+OpenAI workflow. See `dataset/README.md` for the active selection.
 
 Run from `Diss`:
 

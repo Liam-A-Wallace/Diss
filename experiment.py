@@ -127,6 +127,7 @@ def run_trial(
 
     # Load the image before fixation so nothing loads between fixation
     # and stimulus onset.
+    preparation_started = time.perf_counter()
     image = visual.ImageStim(
         win,
         image=stim_path,
@@ -147,6 +148,10 @@ def run_trial(
 
     # the camera is already sampling; the ready cross only gates on live gaze
     # and measures drift before the face appears
+    print(
+        f"[timing] trial {trial_index}: image and label preparation "
+        f"{time.perf_counter() - preparation_started:.2f}s"
+    )
     overlay.reset()
     overlay.show()
     drift = run_ready(win, fixation, gaze)
@@ -324,7 +329,7 @@ def main(argv=None):
         print(f"[ERROR] {err}", file=sys.stderr)
         return
 
-    # Initialise tracking; calibration runs later on the experiment window.
+    # Initialise the SDK before creating the fullscreen OpenGL window.
     gaze = GazeRecorder(camera_index=CAMERA_INDEX)
     try:
         gaze.init()
@@ -340,6 +345,7 @@ def main(argv=None):
         color=BG,
         units="height",
         useFBO=True,
+        allowStencil=True,  # Required by the scrolling explanation text box.
     )
 
     # needed for win.nDroppedFrames to count
@@ -535,6 +541,15 @@ def main(argv=None):
     except QuitExperiment:
         if session_status != "complete":
             session_status = "aborted"
+
+    except BaseException:
+        # Preserve the original error before cleanup can hide the traceback.
+        import traceback
+
+        failure = traceback.format_exc()
+        print(failure, file=sys.stderr, flush=True)
+        Path(base_name + "_error.txt").write_text(failure, encoding="utf-8")
+        raise
 
     finally:
         # Release the fullscreen desktop before camera/SDK cleanup, which can
