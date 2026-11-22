@@ -58,7 +58,7 @@ The results page links to these files:
 | File | Contents |
 | --- | --- |
 | trial_*_qc.png | Original image with a dwell heatmap and numbered fixations |
-| data_results/features.csv | One row per trial: response, confidence, quality, fixation statistics and AOI dwell columns |
+| data_results/features.csv | One row per trial: response, confidence, optional decision reason, quality, fixation statistics and AOI dwell columns |
 | data_results/samples.csv | Individual gaze samples, image coordinates, AOIs and quality flags |
 | data_results/fixations.csv | Exploratory fixations with location, duration, segment and AOI |
 | data_results/aoi_dwell.csv | Per-region observed dwell, fractions and first fixation latency |
@@ -67,6 +67,8 @@ The results page links to these files:
 | data_results/quality.csv | Measured sample rates, interval statistics, off-image/invalid counts and coverage |
 | data_results/transitions.csv | AOI changes within a continuous observation segment |
 | analysis.json | Parameters and hashes of the source files and AOI masks |
+
+On the combined confidence and reason screen, `rt_confidence` is the time to the first rating click, and `rt_decision_reason` is the time from screen onset to Continue. On older runs with a separate reason screen, `rt_decision_reason` starts when that separate screen opens.
 
 Practice and interrupted trials are explicitly flagged. Trials with no gaze samples are retained. Missing responses stay blank. Tables identify both participant and session; repeated sessions should not be combined using participant ID alone. All manifest AOI labels have dwell columns, including zero-dwell regions.
 

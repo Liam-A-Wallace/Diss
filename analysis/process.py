@@ -228,7 +228,8 @@ def process(base, output, aois=None, allow_unreviewed=False, coordinate_source="
         aoi_names.update(dwell)
         features.append(dict(identity, condition=view["condition"],
                              **{k: response.get(k, "") for k in
-                                ("difficulty", "response", "correct", "confidence", "rt_classification", "drift_px")},
+                                ("difficulty", "response", "correct", "confidence", "decision_reason",
+                                 "rt_classification", "rt_confidence", "rt_decision_reason", "drift_px")},
                              interrupted=int(offsets[trigger].get("interrupted", False)),
                              view_ms=view_ms, sample_count=len(rows),
                              valid_fraction=sum(r["valid"] for r in rows) / len(rows) if rows else 0,
