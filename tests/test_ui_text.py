@@ -5,6 +5,8 @@ import types
 import unittest
 from unittest.mock import patch
 
+from errors import QuitExperiment
+
 
 class TextFitTests(unittest.TestCase):
     def test_cached_bounds_do_not_shrink_text_to_nothing(self):
@@ -30,6 +32,35 @@ class TextFitTests(unittest.TestCase):
         ui.fit_text(stim, 1.08, 0.04)
         self.assertGreater(stim.height, 0.02)
         self.assertLessEqual(stim.boundingBox[1], 0.04 * 1080)
+
+    def test_window_close_is_turned_into_quit(self):
+        spec = importlib.util.spec_from_file_location(
+            "ui_close_under_test", Path(__file__).parents[1] / "ui.py")
+        ui = importlib.util.module_from_spec(spec)
+        with patch.dict("sys.modules", {
+            "psychopy": types.SimpleNamespace(visual=None),
+        }):
+            spec.loader.exec_module(ui)
+
+        class Window:
+            def __init__(self):
+                self.flips = 0
+                self.winHandle = types.SimpleNamespace(has_exit=False)
+
+            def flip(self):
+                self.flips += 1
+
+        win = Window()
+        ui.install_close_guard(win)
+        win.flip()
+        self.assertEqual(win.flips, 1)
+
+        win.winHandle.has_exit = True
+        with self.assertRaises(QuitExperiment):
+            win.flip()
+        # Cleanup flips still run so the partial trial can be saved.
+        win.flip()
+        self.assertEqual(win.flips, 2)
 
 
 if __name__ == "__main__":

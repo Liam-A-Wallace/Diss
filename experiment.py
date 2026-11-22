@@ -31,7 +31,7 @@ from gaze import GazeRecorder
 from screens import (confidence_reason_screen, info_screen, participant_screen,
                      run_iti, run_ready, wait_for_click)
 from trials import load_and_verify_trials
-from ui import Button, make_fixation, text
+from ui import Button, install_close_guard, make_fixation, text
 
 
 # Trial
@@ -275,6 +275,10 @@ def main(argv=None):
 
     # needed for win.nDroppedFrames to count
     win.recordFrameIntervals = True
+
+    # Alt+F4 marks the pyglet window as exiting but does not close it while
+    # PsychoPy is driving the event pump; turn that into a normal saved quit.
+    install_close_guard(win)
 
     print("[PsychoPy] win.size =", win.size)
     print("[GazeFollower] screen size =", gaze.tracker.config.screen_size)

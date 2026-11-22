@@ -5,6 +5,7 @@ from psychopy import visual
 
 from config import (ACCENT, BTN_FILL, BTN_HOVER, BTN_LINE, FONT, PANEL,
                     PANEL_LINE, TEXT)
+from errors import QuitExperiment
 
 
 # Drawing helpers
@@ -79,6 +80,35 @@ def fit_text(stim, width, height):
         if scale >= 1.0:
             break
         stim.height *= min(scale * 0.96, 0.95)
+
+
+def install_close_guard(win):
+    """Turn a window close (Alt+F4) into the normal quit path.
+
+    PsychoPy pumps pyglet events without running pyglet's event loop, so the
+    backend's default close handler only marks the window as exiting. Without
+    this check the fullscreen window stays up and task loops keep drawing.
+    """
+    flip = win.flip
+    close_reported = False
+
+    def window_closed():
+        return getattr(getattr(win, "winHandle", None), "has_exit", False)
+
+    def guarded_flip(*args, **kwargs):
+        nonlocal close_reported
+        # If the backend did close the context, do not try to draw into it.
+        if not close_reported and window_closed():
+            close_reported = True
+            raise QuitExperiment()
+        flip(*args, **kwargs)
+        if not close_reported and window_closed():
+            # Only raise once so cleanup flips in finally blocks can still
+            # stamp the display offset and flush the current trial.
+            close_reported = True
+            raise QuitExperiment()
+
+    win.flip = guarded_flip
 
 
 class Button:

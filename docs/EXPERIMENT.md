@@ -71,6 +71,7 @@ string. Classification and confidence timings are recorded before this step.
 | R on a ready/instruction screen | Recalibrate and repeat the portrait check |
 | Esc on a task/check screen | Quit and save the partial run |
 | EXIT button on the response screens | Same as Esc |
+| Alt+F4 or closing the window | Same as Esc (the window is fullscreen) |
 
 The ready cross shows a blue gaze dot. Its ring is red while waiting for
 tracking, amber for off-centre gaze and green when recent gaze is near the

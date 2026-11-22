@@ -17,7 +17,8 @@ is separate from the five trials. The demo skips normal practice and the break.
 
 The ready cross also shows a blue gaze dot. During image viewing, scroll to
 zoom, drag to pan and press Home to reset. Enter/Space advances to the real/fake
-decision and confidence rating. Esc on a task/check screen saves a partial run.
+decision and confidence rating. Esc or Alt+F4 saves a partial run and quits;
+the response screens also have an EXIT button.
 
 ## Results
 
