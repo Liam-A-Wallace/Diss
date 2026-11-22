@@ -12,27 +12,32 @@ ROOT = Path(__file__).parents[1]
 
 
 class DecisionReasonTests(unittest.TestCase):
-    def screen(self, value="", escape=False):
+    def screen(self, value="", escape=False, positions=None, presses=None):
         boxes = []
+        drawn = []
+        self.drawn = drawn
 
         class Stim:
             def __init__(self, *args, **kwargs):
-                self.text = kwargs.get("text", "")
+                self.text = args[1] if len(args) > 1 else kwargs.get("text", "")
                 self.editable = kwargs.get("editable", False)
+                self.shape = self.label = self
 
             def draw(self, *args):
-                pass
+                drawn.append(self.text)
 
             def contains(self, pos):
-                return True
+                return pos == self.value
 
         def textbox(*args, **kwargs):
             box = Stim(*args, **kwargs)
+            box.value = "reason"
             boxes.append(box)
             return box
 
-        presses = iter([True, True, False, True])
-        mouse = types.SimpleNamespace(getPos=lambda: (0, 0),
+        presses = iter(presses or [True, True, False, True, False, True, False, True])
+        positions = iter(positions or ["continue", "continue", "continue", "4", "4", "continue", "continue"])
+        mouse = types.SimpleNamespace(getPos=lambda: next(positions),
                                       getPressed=lambda: (next(presses), False, False))
         flips = []
 
@@ -49,32 +54,55 @@ class DecisionReasonTests(unittest.TestCase):
             visual=types.SimpleNamespace(TextBox2=textbox))
         spec = importlib.util.spec_from_file_location("reason_screens", ROOT / "screens.py")
         screens = importlib.util.module_from_spec(spec)
+
+        def make_button(value):
+            button = Stim()
+            button.value = value
+            return button
+
+        def collect():
+            stims = {key: Stim() for key in ("conf_prompt", "conf_left", "conf_right")}
+            return screens.confidence_reason_screen(win, mouse, [make_button("4")], stims, Stim())
+
         with patch.dict("sys.modules", {
             "psychopy": psychopy,
-            "ui": types.SimpleNamespace(Button=Stim, rounded_rect=Stim, text=Stim,
+            "ui": types.SimpleNamespace(Button=lambda *args, **kwargs: make_button(args[4]),
+                                        rounded_rect=Stim, text=Stim,
                                         fit_text=lambda *args: None),
             "overlay": types.SimpleNamespace(draw=lambda: None),
         }):
             spec.loader.exec_module(screens)
             if escape:
                 with self.assertRaises(QuitExperiment):
-                    screens.explanation_screen(win, mouse, "real", Stim())
+                    collect()
                 result = None
             else:
-                result = screens.explanation_screen(win, mouse, "fake", Stim())
+                try:
+                    result = collect()
+                except QuitExperiment:
+                    result = "quit"
         self.assertFalse(boxes[0].editable)
         return result, flips
 
     def test_preserves_multiline_punctuation_and_waits_for_fresh_click(self):
         result, flips = self.screen('  Skin looked unusual, especially "around the eyes".\nHair too.  ')
-        self.assertEqual(result, ('Skin looked unusual, especially "around the eyes".\nHair too.', 1.25))
-        self.assertEqual(len(flips), 3)
+        self.assertEqual(result, ("4", 1.25, 'Skin looked unusual, especially "around the eyes".\nHair too.', 1.25))
+        self.assertEqual(len(flips), 7)
 
     def test_blank_explanation_can_be_skipped(self):
-        self.assertEqual(self.screen()[0], ("", 1.25))
+        self.assertEqual(self.screen()[0], ("4", 1.25, "", 1.25))
+
+    def test_continue_without_rating_explains_what_is_missing(self):
+        result, _ = self.screen()
+        self.assertEqual(result[0], "4")
+        self.assertIn("Choose a confidence rating (1-5) first.", self.drawn)
 
     def test_escape_quits_and_disables_editing(self):
         self.screen(escape=True)
+
+    def test_exit_button_quits_and_disables_editing(self):
+        result, _ = self.screen(positions=["exit"], presses=[False, True])
+        self.assertEqual(result, "quit")
 
     def test_trial_collects_reason_after_confidence_and_returns_csv_fields(self):
         # Load just the trial function, avoiding camera/GUI imports in a unit test.
@@ -84,12 +112,11 @@ class DecisionReasonTests(unittest.TestCase):
 
         def click(*args, **kwargs):
             stages.append("click")
-            return ("fake", 0.5) if len(stages) == 1 else ("4", 0.6)
+            return "fake", 0.5
 
         def reason(*args):
-            self.assertEqual(stages, ["click", "click"])
-            self.assertEqual(args[2], "fake")
-            return "Odd skin texture", 2.5
+            self.assertEqual(stages, ["click"])
+            return "4", 0.6, "Odd skin texture", 2.5
 
         noop = lambda *args, **kwargs: None
         namespace = dict(visual=types.SimpleNamespace(ImageStim=noop), text=noop,
@@ -98,7 +125,7 @@ class DecisionReasonTests(unittest.TestCase):
                          run_ready=noop, event=types.SimpleNamespace(clearEvents=noop),
                          view_image=lambda *args: ({"onset": 1_000_000_000, "offset": 2_000_000_000}, 0),
                          GAZE_MIN_VALID_FRAC=0.7, wait_for_click=click,
-                         explanation_screen=reason, run_iti=noop)
+                         confidence_reason_screen=reason, run_iti=noop)
         exec(compile(ast.Module(body=[trial_fn], type_ignores=[]), "experiment.py", "exec"), namespace)
         result = namespace["run_trial"](
             None, None, {"stimulus": "face.png", "condition": "fake"}, None, [], [],

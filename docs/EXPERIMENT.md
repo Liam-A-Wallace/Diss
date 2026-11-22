@@ -51,10 +51,12 @@ subjective check, not a measured accuracy validation.
 The full experiment has practice trials, the main task and a halfway break.
 The five-image demo skips normal practice and the break. Each trial has a ready
 cross, image viewing, real/fake classification, confidence rating from 1 to 5,
-and an optional text box asking what led to the participant's decision. Click
-CONTINUE to submit the explanation or leave it blank. Enter adds a new line;
-Space types a space. The image is not shown again during explanation entry.
-This step also appears during practice and in the five-image demo.
+and an optional text box asking what led to the participant's decision. Choose a
+1-5 confidence rating before clicking CONTINUE; the screen will point out a
+missing rating. Click CONTINUE to submit the explanation or leave it blank.
+Enter adds a new line; Space types a space. The image is not shown again during
+explanation entry. This step also appears during practice and in the five-image
+demo.
 
 The trial CSV saves the explanation as `decision_reason` and the time spent on
 that screen as `rt_decision_reason` (seconds). A skipped explanation is an empty
@@ -68,6 +70,7 @@ string. Classification and confidence timings are recorded before this step.
 | Home | Reset the view |
 | R on a ready/instruction screen | Recalibrate and repeat the portrait check |
 | Esc on a task/check screen | Quit and save the partial run |
+| EXIT button on the response screens | Same as Esc |
 
 The ready cross shows a blue gaze dot. Its ring is red while waiting for
 tracking, amber for off-centre gaze and green when recent gaze is near the

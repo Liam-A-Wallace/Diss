@@ -28,8 +28,8 @@ from viewing import view_image
 
 from errors import QuitExperiment, RecalibrateRequest, StimulusError
 from gaze import GazeRecorder
-from screens import (explanation_screen, info_screen, participant_screen, run_iti, run_ready,
-                     wait_for_click)
+from screens import (confidence_reason_screen, info_screen, participant_screen,
+                     run_iti, run_ready, wait_for_click)
 from trials import load_and_verify_trials
 from ui import Button, make_fixation, text
 
@@ -92,10 +92,17 @@ def run_trial(
         else f"Photo {trial_index}"
     )
 
+    # Units are window heights, so the left border sits at -win.aspect / 2.
+    # TRIAL_NUMBER_POS is tuned for 16:9; on a narrower window (16:10 is
+    # exactly at the border) the label would hang off the left edge.
+    label_x = TRIAL_NUMBER_POS[0]
+    if win is not None:
+        label_x = max(label_x, -win.aspect / 2 + 0.05)
+
     counter = text(
         win,
         photo_label,
-        TRIAL_NUMBER_POS,
+        (label_x, TRIAL_NUMBER_POS[1]),
         height=TRIAL_NUMBER_HEIGHT,
         color=MUTED,
         bold=True,
@@ -128,19 +135,10 @@ def run_trial(
 
     correct = 1 if response == true_class else 0
 
-    # Stage 3: confidence rating
-    confidence, rt_conf = wait_for_click(
-        win,
-        mouse,
-        confidence_buttons,
-        extras=[counter, stims["conf_prompt"], stims["conf_left"],
-                stims["conf_right"]],
-    )
-
+    # Stage 3: confidence and optional explanation share one response page.
+    confidence, rt_conf, explanation, rt_explanation = confidence_reason_screen(
+        win, mouse, confidence_buttons, stims, counter)
     confidence = int(confidence)
-
-    # Stage 4: optional reasons, outside image viewing and existing response RTs.
-    explanation, rt_explanation = explanation_screen(win, mouse, response, counter)
 
     run_iti(win)
 
@@ -270,6 +268,9 @@ def main(argv=None):
         color=BG,
         units="height",
         useFBO=True,
+        # the confidence screen's scrollable TextBox2 clips with an Aperture,
+        # which calls core.quit() on a window without a stencil buffer
+        allowStencil=True,
     )
 
     # needed for win.nDroppedFrames to count

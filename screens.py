@@ -19,6 +19,17 @@ def _safe_id(value, default):
     return cleaned or default
 
 
+def _exit_geometry(win, y=0.455, width=0.13):
+    aspect = getattr(win, "aspect", 16 / 9)
+    return (aspect / 2 - width / 2 - 0.04, y), (width, 0.05)
+
+
+def _exit_button(win, y=0.455, width=0.13):
+    """Small always-available quit button for response screens."""
+    pos, size = _exit_geometry(win, y, width)
+    return Button(win, "EXIT", pos, size, "exit", text_height=0.024)
+
+
 # Instruction screens
 def info_screen(win, title, body=None, steps=None,
                 footer="Press ENTER or SPACE to continue", allow_recalibration=True,
@@ -236,6 +247,8 @@ def participant_screen(win, participant="001", session="001"):
 
 # Response collection
 def wait_for_click(win, mouse, buttons, extras=()):
+    exit_button = _exit_button(win)
+
     def draw_screen(hovered=None):
         for stim in extras:
             stim.draw()
@@ -243,6 +256,7 @@ def wait_for_click(win, mouse, buttons, extras=()):
         for button in buttons:
             button.draw(hovered is button)
 
+        exit_button.draw(hovered is exit_button)
         overlay.draw()
 
     # RT is zeroed on the flip where this screen first appears.
@@ -268,7 +282,7 @@ def wait_for_click(win, mouse, buttons, extras=()):
 
         pos = mouse.getPos()
         hovered = next(
-            (button for button in buttons if button.contains(pos)),
+            (button for button in (*buttons, exit_button) if button.contains(pos)),
             None,
         )
 
@@ -276,49 +290,91 @@ def wait_for_click(win, mouse, buttons, extras=()):
         win.flip()
 
         if hovered is not None and mouse.getPressed()[0]:
+            if hovered is exit_button:
+                raise QuitExperiment()
             return hovered.value, rt_clock.getTime()
 
 
-def explanation_screen(win, mouse, response, counter):
-    """Collect an optional explanation after the decision and confidence rating."""
-    label = "AI-generated" if response == "fake" else "real"
-    prompt = text(win, f"What led you to decide this image was {label}?",
-                  (0, 0.31), height=0.039, bold=True, wrap=1.35, max_height=0.085)
-    hint = text(win, "Optional: write any reasons, or leave blank. Click CONTINUE when finished.",
-                (0, 0.215), height=0.025, color=MUTED, wrap=1.3, max_height=0.055)
+def confidence_reason_screen(win, mouse, buttons, stims, counter):
+    """Collect a 1-5 confidence rating and optional reason on one page."""
+    reason_label = text(win, "What influenced your decision? (optional)",
+                        (0, -0.205), height=0.03, bold=True,
+                        wrap=1.25, max_height=0.045)
     box = visual.TextBox2(
-        win, text="", font=FONT, pos=(0, -0.015), units="height",
-        size=(1.30, 0.34), letterHeight=0.03, color=TEXT,
-        fillColor=PANEL, borderColor=ACCENT, padding=0.02,
+        win, text="", font=FONT, pos=(0, -0.32), units="height",
+        size=(1.25, 0.16), letterHeight=0.027, color=TEXT,
+        fillColor=PANEL, borderColor=BTN_LINE, padding=0.018,
         alignment="top-left", overflow="scroll", editable=True, autoLog=False,
-        placeholder="Type your reasons here (optional)...",
+        placeholder="Type your reason here",
     )
-    button = Button(win, "CONTINUE", (0, -0.32), (0.34, 0.085),
-                    "continue", text_height=0.032)
+    button = Button(win, "CONTINUE", (0, -0.455), (0.30, 0.065),
+                    "continue", text_height=0.028)
+    exit_pos, _ = _exit_geometry(win)
+    exit_button = _exit_button(win)
+    quit_hint = text(win, "or press ESC", (exit_pos[0], 0.405),
+                     height=0.018, color=MUTED)
+    notice = text(win, "Choose a confidence rating (1-5) first.",
+                  (0, 0.18), height=0.026, color=ACCENT, bold=True,
+                  wrap=1.2, max_height=0.03)
     clock = core.Clock()
     event.clearEvents()
     win.callOnFlip(clock.reset)
     win.mouseVisible = True
     box.hasFocus = True
+
+    selected = None
+    confidence_rt = None
+    show_notice = False
     was_pressed = bool(mouse.getPressed()[0])
     try:
         while True:
             if "escape" in event.getKeys(keyList=["escape"]):
                 raise QuitExperiment()
-            hovered = button.contains(mouse.getPos())
-            counter.draw()
-            prompt.draw()
-            hint.draw()
-            box.draw()
-            button.draw(hovered)
+
+            pos = mouse.getPos()
+            pressed = bool(mouse.getPressed()[0])
+            hovered = next((rating for rating in buttons if rating.contains(pos)), None)
+            continue_hovered = button.contains(pos)
+            exit_hovered = exit_button.contains(pos)
+
+            for stim in (counter, stims["conf_prompt"], stims["conf_left"],
+                         stims["conf_right"], reason_label, box, quit_hint):
+                stim.draw()
+            for rating in buttons:
+                is_selected = rating is selected
+                is_hovered = rating is hovered
+                rating.shape.fillColor = PANEL if is_selected else (BTN_HOVER if is_hovered else BTN_FILL)
+                rating.shape.lineColor = ACCENT if (is_selected or is_hovered) else BTN_LINE
+                rating.shape.draw()
+                rating.label.color = ACCENT if is_selected else TEXT
+                rating.label.draw()
+            button.label.color = TEXT if selected is not None else MUTED
+            button.draw(continue_hovered and selected is not None)
+            exit_button.draw(exit_hovered)
+            if show_notice:
+                notice.draw()
             overlay.draw()
             win.flip()
-            pressed = bool(mouse.getPressed()[0])
-            if pressed and not was_pressed and hovered:
-                return box.text.strip(), clock.getTime()
+
+            if pressed and not was_pressed:
+                if exit_hovered:
+                    raise QuitExperiment()
+                if hovered is not None:
+                    selected = hovered
+                    show_notice = False
+                    if confidence_rt is None:
+                        confidence_rt = clock.getTime()
+                    box.hasFocus = True
+                elif box.contains(pos):
+                    box.hasFocus = True
+                elif continue_hovered:
+                    if selected is None:
+                        show_notice = True
+                    else:
+                        return (selected.value, confidence_rt, box.text.strip(),
+                                clock.getTime())
             was_pressed = pressed
     finally:
-        # Remove the editable from the window so later screens don't receive text.
         box.editable = False
         event.clearEvents()
 
