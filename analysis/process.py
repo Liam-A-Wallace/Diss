@@ -58,13 +58,17 @@ def plot_trial(stimulus, rows, fixations, out, name, max_gap_ms=100,
     from matplotlib.cm import ScalarMappable
     import numpy as np
     from PIL import Image
+    from .summary import GROUP_COLOURS, GROUP_LABELS, collapse_region_visits
     with Image.open(stimulus) as im:
         image = im.convert("RGB")
     w, h = image.size
+    visits = collapse_region_visits(fixations)
+    show_regions = bool(visits)
+    ncols = 3 if show_regions else 2
     with plt.rc_context({"font.family": "DejaVu Sans", "font.size": 10,
                          "text.color": "#242424", "axes.titleweight": "normal"}):
-        fig, axes = plt.subplots(1, 2, figsize=(13, 7), facecolor="white")
-        fig.subplots_adjust(left=0.035, right=0.965, top=0.83, bottom=0.18, wspace=0.12)
+        fig, axes = plt.subplots(1, ncols, figsize=(6.2 * ncols, 6.8), facecolor="white")
+        fig.subplots_adjust(left=0.03, right=0.97, top=0.83, bottom=0.21, wspace=0.10)
         try:
             for ax in axes:
                 ax.imshow(image)
@@ -85,50 +89,92 @@ def plot_trial(stimulus, rows, fixations, out, name, max_gap_ms=100,
                 axes[0].imshow(colours, extent=(0, w, h, 0), origin="upper", interpolation="bilinear")
                 colourbar = fig.colorbar(ScalarMappable(norm=norm, cmap="turbo"), ax=axes[0],
                                          orientation="horizontal", fraction=0.045, pad=0.055,
-                                         shrink=0.8, aspect=35)
-                colourbar.set_label("Smoothed observed dwell (seconds / grid cell)", fontsize=9)
+                                         shrink=0.82, aspect=30)
+                colourbar.set_label("Smoothed dwell (s / cell)", fontsize=8.5)
                 colourbar.outline.set_visible(False)
                 colourbar.ax.tick_params(labelsize=8, length=0)
-                right, left = axes[1].get_position(), axes[0].get_position()
-                axes[1].set_position([right.x0, left.y0, left.width, left.height])
+                left_pos = axes[0].get_position()
+                for extra_ax in axes[1:]:
+                    pos = extra_ax.get_position()
+                    extra_ax.set_position([pos.x0, left_pos.y0, left_pos.width, left_pos.height])
             decisions = link_decisions(fixations, max_gap_ms) if decisions is None else decisions
-            for a, b, decision in zip(fixations, fixations[1:], decisions):
+            time_cmap = plt.get_cmap("plasma")
+            n_fix = max(len(fixations) - 1, 1)
+            for idx, (a, b, decision) in enumerate(zip(fixations, fixations[1:], decisions)):
                 if decision["accepted"]:
+                    col = time_cmap(idx / n_fix)
                     arrow = axes[1].annotate("", xy=(b["image_x"], b["image_y"]),
                                      xytext=(a["image_x"], a["image_y"]),
-                                     arrowprops=dict(arrowstyle="-|>", color="#d35400",
-                                                     lw=2.4, mutation_scale=16,
+                                     arrowprops=dict(arrowstyle="-|>", color=col, alpha=0.68,
+                                                     lw=1.6, mutation_scale=12,
                                                      linestyle="--" if decision["inter_fixation_ms"] > sample_max_gap_ms else "-",
-                                                     shrinkA=6, shrinkB=6,
-                                                     connectionstyle="arc3,rad=0.12"), zorder=2)
+                                                     shrinkA=5, shrinkB=5,
+                                                     connectionstyle="arc3,rad=0.10"), zorder=2)
                     arrow.arrow_patch.set_path_effects([
-                        effects.Stroke(linewidth=4.2, foreground="white"), effects.Normal()])
+                        effects.Stroke(linewidth=2.8, foreground="white", alpha=0.65), effects.Normal()])
             if fixations:
+                fix_cols = [time_cmap(i / n_fix) for i in range(len(fixations))]
                 axes[1].scatter([f["image_x"] for f in fixations], [f["image_y"] for f in fixations],
-                                s=[65 + min(600, f["duration_ms"]) * 0.28 for f in fixations],
-                                c="#123650", edgecolors="white", linewidths=1.4, alpha=0.88, zorder=3)
-                for f in fixations:
+                                s=[42 + min(600, f["duration_ms"]) * 0.20 for f in fixations],
+                                c=fix_cols, edgecolors="white", linewidths=1.1, alpha=0.88, zorder=3)
+                # Label all fixations on shorter trials; on dense trials label first, last & key peaks.
+                dense = len(fixations) > 25
+                step = 3 if len(fixations) > 40 else 2
+                for i, f in enumerate(fixations):
+                    if dense and i not in (0, len(fixations) - 1) and i % step != 0:
+                        continue
                     axes[1].annotate(str(f["fixation"]), (f["image_x"], f["image_y"]),
+                                     color="white", ha="center", va="center", fontsize=7,
+                                     fontweight="bold", zorder=4,
+                                     path_effects=[effects.withStroke(linewidth=1.5, foreground="#111")])
+            if show_regions:
+                for a, b in zip(visits, visits[1:]):
+                    if b["segment_break_before"]:
+                        continue
+                    arrow = axes[2].annotate("", xy=(b["image_x"], b["image_y"]),
+                                     xytext=(a["image_x"], a["image_y"]),
+                                     arrowprops=dict(arrowstyle="-|>", color="#222222", alpha=0.72,
+                                                     lw=2.0, mutation_scale=14,
+                                                     shrinkA=7, shrinkB=7,
+                                                     connectionstyle="arc3,rad=0.14"), zorder=2)
+                    arrow.arrow_patch.set_path_effects([
+                        effects.Stroke(linewidth=3.4, foreground="white", alpha=0.8), effects.Normal()])
+                axes[2].scatter([v["image_x"] for v in visits], [v["image_y"] for v in visits],
+                                s=[95 + min(1500, v["duration_ms"]) * 0.16 for v in visits],
+                                c=[GROUP_COLOURS.get(v["region"], "#333") for v in visits],
+                                edgecolors="white", linewidths=1.5, alpha=0.92, zorder=3)
+                for v in visits:
+                    axes[2].annotate(str(v["visit"]), (v["image_x"], v["image_y"]),
                                      color="white", ha="center", va="center", fontsize=8,
-                                     fontweight="bold", zorder=4)
+                                     fontweight="bold", zorder=4,
+                                     path_effects=[effects.withStroke(linewidth=1.6, foreground="#111")])
+                axes[2].set_title(f"Region scanpath ({len(visits)} visits)", loc="left", pad=14, fontsize=13)
+                seen_regions = list(dict.fromkeys(v["region"] for v in visits))
+                legend_handles = [
+                    plt.Line2D([0], [0], marker="o", color="w", label=GROUP_LABELS.get(r, r),
+                               markerfacecolor=GROUP_COLOURS.get(r, "#333"), markersize=7)
+                    for r in seen_regions
+                ]
+                axes[2].legend(handles=legend_handles, loc="lower center", bbox_to_anchor=(0.5, -0.11),
+                               ncol=min(3, len(legend_handles)), frameon=False, fontsize=8)
             for ax, empty, message in ((axes[0], not usable, "No usable dwell recorded"),
                                        (axes[1], not fixations, "No fixations detected")):
                 if empty:
                     ax.text(0.5, 0.04, message, transform=ax.transAxes, ha="center",
                             bbox=dict(boxstyle="round,pad=0.6", fc="white", ec="none", alpha=0.9))
-            axes[0].set_title("Where you looked", loc="left", pad=14, fontsize=14)
-            axes[1].set_title("Order of fixations", loc="left", pad=14, fontsize=14)
-            fig.text(0.04, 0.94, name, fontsize=18, fontweight="bold")
+            axes[0].set_title("Where you looked", loc="left", pad=14, fontsize=13)
+            axes[1].set_title("Fixations (purple = early, yellow = late)", loc="left", pad=14, fontsize=13)
+            fig.text(0.03, 0.94, name, fontsize=18, fontweight="bold")
             quality_label = (f"   /   {quality['saved_sample_hz']:.1f} samples/s" if quality else "")
-            fig.text(0.04, 0.895,
+            fig.text(0.03, 0.895,
                      f"{observed_seconds:.2f} s observed dwell   /   {len(fixations)} exploratory fixations"
                      f"   /   {sum(d['accepted'] for d in decisions)} links" + quality_label,
                      fontsize=10, color="#53667e")
-            fig.text(0.04, 0.07,
+            fig.text(0.03, 0.04,
                      "Heatmap: Gaussian display smoothing, 1.2 cells on a 40 x 40 grid; colour scale is per trial.\n"
-                     f"Arrows show fixation order, not measured saccades. Dashed: interval > {sample_max_gap_ms:g} ms. "
+                     f"Arrows show fixation/visit order, not measured saccades. Dashed: interval > {sample_max_gap_ms:g} ms or segment break. "
                      "Tracking breaks and view changes stop paths.",
-                     fontsize=9, color="#53667e", linespacing=1.6)
+                     fontsize=8.5, color="#53667e", linespacing=1.5)
             fig.savefig(out, dpi=180, facecolor=fig.get_facecolor())
         finally:
             plt.close(fig)

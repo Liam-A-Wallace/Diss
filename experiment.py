@@ -19,7 +19,8 @@ from config import (BG, BREAK_AT_FRACTION, BUTTON_Y, CAMERA_INDEX,
                     MUTED, PLACEHOLDER_CSV, PRACTICE_CSV, PRACTICE_TRIALS,
                     PRACTICE_TRIGGER_OFFSET, PROMPT_HEIGHT, PROMPT_POS,
                     SCREEN, SHOW_GAZE, TRIAL_NUMBER_HEIGHT,
-                    TRIAL_NUMBER_POS, TRIALS_CSV, VIEW_HINT_POS, WIN_SIZE)
+                    TRIAL_NUMBER_POS, TRIALS_CSV, VIEW_HINT_POS, WIN_SIZE,
+                    WIN_SIZES)
 import overlay
 import texts
 import config
@@ -261,8 +262,10 @@ def main(argv=None):
         gaze.stop_session()
         return
 
+    configured_size = WIN_SIZES.get(WIN_SIZE, WIN_SIZE) if isinstance(WIN_SIZE, str) else WIN_SIZE
+    win_size = configured_size or gaze.screen_size or (1920, 1080)
     win = visual.Window(
-        size=WIN_SIZE,
+        size=win_size,
         fullscr=FULLSCREEN,
         screen=SCREEN,
         color=BG,
@@ -318,6 +321,7 @@ def main(argv=None):
     try:
         session = SessionLog(base_name, exp_info, win.size, gaze.screen_size,
                              dict({k: v for k, v in vars(config).items() if k.isupper()},
+                                  WIN_SIZE=list(map(int, win.size)),
                                   TRIALS_CSV=args.trials, PRACTICE_TRIALS=args.practice_trials,
                                   BREAK_AT_FRACTION=break_fraction),
                              trial_rows, practice_rows)

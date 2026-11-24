@@ -24,8 +24,9 @@ _GAZEFOLLOWER_DIR = os.path.join(_WORKSPACE_ROOT, "GazeFollower")
 if _GAZEFOLLOWER_DIR not in sys.path:
     sys.path.insert(0, _GAZEFOLLOWER_DIR)
 
-from config import (CALIBRATION_POINTS, CAMERA_EXPOSURE, ENABLE_FACE_FILTER,
-                    GAZE_FILTER, GAZE_MODEL, LOCK_CAMERA_EXPOSURE)
+from config import (CALIBRATION_POINTS, CAMERA_EXPOSURE, CAMERA_GAIN,
+                    ENABLE_FACE_FILTER, GAZE_FILTER, GAZE_MODEL,
+                    LOCK_CAMERA_EXPOSURE)
 from gazefollower import GazeFollower
 from gazefollower.camera import WebCamCamera
 from gazefollower.filter import HeuristicFilter, OneEuroFilter
@@ -151,13 +152,14 @@ class GazeRecorder:
         model_path = _resolve_gaze_model(GAZE_MODEL)
         if cfg.use_multiprocessing:
             from gaze_worker import configure_worker
-            configure_worker(model_path, LOCK_CAMERA_EXPOSURE, CAMERA_EXPOSURE)
+            configure_worker(model_path, LOCK_CAMERA_EXPOSURE, CAMERA_EXPOSURE, CAMERA_GAIN)
         estimator = None if cfg.use_multiprocessing else MGazeNetGazeEstimator(model_path=model_path)
         self.tracker = GazeFollower(
             camera=WebCamCamera(
                 webcam_id=self.camera_index,
                 lock_exposure=LOCK_CAMERA_EXPOSURE,
                 exposure=CAMERA_EXPOSURE,
+                gain=CAMERA_GAIN,
             ),
             gaze_filter=gaze_filter,
             gaze_estimator=estimator,

@@ -13,6 +13,7 @@ the main module in the child process before the worker entrypoint is
 unpickled), the same patch is applied in the gaze-worker process too.
 """
 
+import config as _config
 from config import CAMERA_EXPOSURE, LOCK_CAMERA_EXPOSURE
 from gazefollower.camera import WebCamCamera as _WebCamCamera
 from gazefollower.logger import Log
@@ -21,12 +22,12 @@ _PATCH_FLAG = "_diss_exposure_lock_patched"
 
 
 def apply():
-    """Give ``WebCamCamera`` optional exposure locking.
+    """Give ``WebCamCamera`` optional exposure and gain locking.
 
-    The upstream constructor is extended with ``lock_exposure`` and
-    ``exposure`` keyword arguments. When either is left as ``None`` the values
-    from ``config`` are used, so cameras created inside the worker process
-    (which only passes ``webcam_id``) still honour the experiment's settings.
+    The upstream constructor is extended with ``lock_exposure``, ``exposure``,
+    and ``gain`` keyword arguments. When left as ``None`` the values from
+    ``config`` are used, so cameras created inside the worker process (which
+    only passes ``webcam_id``) still honour the experiment's settings.
     """
     if getattr(_WebCamCamera, _PATCH_FLAG, False):
         return
@@ -35,13 +36,16 @@ def apply():
     _upstream_create_thread = _WebCamCamera._create_capture_thread
 
     def __init__(self, webcam_id=0, img_height=480, img_width=640, cam_fps=30,
-                 lock_exposure=None, exposure=None):
+                 lock_exposure=None, exposure=None, gain=None):
         if lock_exposure is None:
             lock_exposure = LOCK_CAMERA_EXPOSURE
         if exposure is None:
             exposure = CAMERA_EXPOSURE
+        if gain is None:
+            gain = getattr(_config, "CAMERA_GAIN", None)
         self.lock_exposure = lock_exposure
         self.exposure = exposure
+        self.gain = gain
         _upstream_init(self, webcam_id, img_height, img_width, cam_fps)
 
     def configure_capture(self):
@@ -64,8 +68,15 @@ def apply():
             set_exp = False
             if self.exposure is not None:
                 set_exp = self._cap.set(cv2.CAP_PROP_EXPOSURE, self.exposure)
+            gain_prop = getattr(cv2, "CAP_PROP_GAIN", None)
+            set_gain = None
+            if self.gain is not None and gain_prop is not None:
+                set_gain = self._cap.set(gain_prop, self.gain)
+            actual_exp = self._cap.get(cv2.CAP_PROP_EXPOSURE)
+            gain_info = (f", gain={self.gain} set={set_gain} (actual={self._cap.get(gain_prop)})"
+                         if set_gain is not None else "")
             Log.i(f"Camera exposure lock requested: auto_off={auto_off}, "
-                  f"exposure={self.exposure} set={set_exp}")
+                  f"exposure={self.exposure} set={set_exp} (actual={actual_exp}){gain_info}")
         else:
             # Restore auto exposure because manual settings can persist in the
             # camera driver between runs, even after changing the config.

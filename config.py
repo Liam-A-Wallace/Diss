@@ -1,7 +1,14 @@
 ﻿"""Configuration and shared constants for the experiment."""
 
 
-WIN_SIZE = (1920, 1080)   # native resolution of the experiment monitor
+WIN_SIZES = {
+    "laptop": (1920, 1200),   # 16:10 laptop display
+    "monitor": (1920, 1080),  # 16:9 experiment monitor
+}
+# None auto-detects the active monitor's native size (e.g. 1920x1200 on the
+# laptop or 1920x1080 on the lab monitor). Or pick WIN_SIZES["laptop"] /
+# WIN_SIZES["monitor"] explicitly.
+WIN_SIZE = None
 FULLSCREEN = True
 SCREEN = 0          # which monitor PsychoPy uses (0 = primary)
 SHOW_GAZE = False   # demo: draw the live gaze point on screen
@@ -13,11 +20,13 @@ CAMERA_INDEX = 0   # which webcam GazeFollower opens
 # is the newer, more accurate one supplied by the GazeFollower authors.
 GAZE_MODEL = "base_32M.mnn"
 
-# Fixed exposure for this webcam. Reduce in small steps if the preview is too
-# bright; camera controls vary by webcam and driver. More negative is darker.
-# Automatic mode ignores CAMERA_EXPOSURE.
+# Fixed exposure and optional gain for this webcam. More negative exposure is
+# darker; -4.5 gave clean low-jitter eye crops (~7 px) at ~20 Hz. Avoid high
+# CAMERA_GAIN (e.g. 100+) because sensor noise degrades eye-crop accuracy.
+# Leave CAMERA_GAIN = None for the driver's default.
 LOCK_CAMERA_EXPOSURE = True
 CAMERA_EXPOSURE = -4.5
+CAMERA_GAIN = None
 CALIBRATION_POINTS = 13  # gaze calibration pattern: 5, 9, or 13 points
 # Gaze smoothing. ENABLE_FACE_FILTER smooths the face/eye landmarks before
 # they reach the gaze model (reduces jitter at the source). GAZE_FILTER picks

@@ -53,20 +53,23 @@ def derive_regions(labels, confidence, id2label, min_confidence=0.6):
     return mask, notes
 
 
-def preview(image, mask, out):
+def preview(image, mask, out, labels=None, solid=False):
     import numpy as np
     from PIL import Image, ImageDraw
     # Stable colours independent of labels present in a particular stimulus.
+    labels = {int(k): v for k, v in (labels or LABELS).items()}
     palette = {k: ((k * 83 + 50) % 256, (k * 137 + 80) % 256,
-                   (k * 47 + 130) % 256) for k in LABELS}
+                   (k * 47 + 130) % 256) for k in labels}
+    palette[255] = (96, 96, 96)
     colour = np.zeros((*mask.shape, 3), dtype=np.uint8)
     for k, rgb in palette.items():
         colour[mask == k] = rgb
-    overlay = Image.blend(image.convert("RGB"), Image.fromarray(colour), 0.38)
-    canvas = Image.new("RGB", (image.width + 240, max(image.height, 430)), "white")
+    overlay = (Image.fromarray(colour) if solid
+               else Image.blend(image.convert("RGB"), Image.fromarray(colour), 0.38))
+    canvas = Image.new("RGB", (image.width + 280, max(image.height, len(labels) * 24 + 24)), "white")
     canvas.paste(overlay, (0, 0))
     draw = ImageDraw.Draw(canvas)
-    for row, (k, name) in enumerate(LABELS.items()):
+    for row, (k, name) in enumerate(labels.items()):
         y = 12 + row * 24
         draw.rectangle((image.width + 10, y, image.width + 28, y + 16), fill=palette[k])
         draw.text((image.width + 34, y), name, fill="black")
@@ -74,10 +77,21 @@ def preview(image, mask, out):
 
 
 def save_manifest(path, manifest):
+    import time
+
     path = Path(path)
     temporary = path.with_suffix(".json.tmp")
     temporary.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    temporary.replace(path)
+    # Windows file scanners/readers can briefly hold the destination open.
+    # Preserve the atomic update and fail explicitly if the lock persists.
+    for attempt in range(6):
+        try:
+            temporary.replace(path)
+            return
+        except PermissionError:
+            if attempt == 5:
+                raise
+            time.sleep(0.1 * (attempt + 1))
 
 
 def generate(stimuli, model_dir, output, min_confidence=0.6):
@@ -155,15 +169,18 @@ class AOIMap:
             return None
         from PIL import Image
         if stimulus not in self.cache:
+            schema = str(self.manifest.get("schema_version", ""))
+            flags = (" --manual" if schema == "detailed-v4-manual"
+                     else " --detailed" if schema.startswith("detailed-") else "")
             digest = sha256(stimulus)
             record = self.manifest["stimuli"].get(digest)
             if record is None:
-                raise ValueError("AOI mask missing for " + stimulus + ". Run python analyse.py aois (add --test for test data).")
+                raise ValueError("AOI mask missing for " + stimulus + f". Run python analyse.py aois{flags} (add --test for test data).")
             if not record.get("reviewed") and not self.allow_unreviewed:
-                raise ValueError("Unreviewed AOIs for " + stimulus + ". Run python analyse.py review (add --test for test data).")
+                raise ValueError("Unreviewed AOIs for " + stimulus + f". Run python analyse.py review{flags} (add --test for test data).")
             mask_path = self.path.parent / record["mask"]
             if record.get("reviewed_mask_sha256") and sha256(mask_path) != record["reviewed_mask_sha256"]:
-                raise ValueError("AOI mask changed after review. Run python analyse.py review again.")
+                raise ValueError(f"AOI mask changed after review. Run python analyse.py review{flags} again.")
             with Image.open(mask_path) as im:
                 mask = im.copy()
             with Image.open(stimulus) as im:

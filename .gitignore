@@ -15,6 +15,7 @@ data/
 
 # Stimulus media is generated/downloaded, not committed (see README)
 stimuli/
+outputs/
 trials_placeholder.csv
 
 # Dataset/enrichment caches (re-downloadable thumbnails)

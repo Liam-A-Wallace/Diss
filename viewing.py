@@ -29,6 +29,7 @@ def view_image(win, mouse, image, stimulus, counter, hint, gaze, session,
     dragging = False
     was_pressed = bool(mouse.getPressed()[0])
     last_frame = None
+    last_hint = None
     stamps = {}
     interrupted = True
     dropped_before = win.nDroppedFrames
@@ -77,7 +78,10 @@ def view_image(win, mouse, image, stimulus, counter, hint, gaze, session,
             for band in bands:
                 band.draw()
             counter.draw()
-            hint.text = f"Scroll to zoom ({view.zoom:.1f}x) | Drag to move | HOME to reset | ENTER to continue"
+            hint_text = f"Scroll to zoom ({view.zoom:.1f}x) | Drag to move | HOME to reset | ENTER to continue"
+            if hint_text != last_hint:
+                hint.text = hint_text
+                last_hint = hint_text
             hint.draw()
             overlay.draw()
             if frame != last_frame:

@@ -1,12 +1,13 @@
 """Instruction, participant-entry, and response screens."""
 from psychopy import core, event, visual
 
+import math
 import re
 
 from config import (ACCENT, BTN_FILL, BTN_HOVER, BTN_LINE, DRIFT_WARN_PX,
                     DRIFT_WINDOW_S, FACE_LOST_AFTER, FIXATION_DURATION,
-                    FONT, GAZE_READY_WINDOW, ITI_DURATION, MUTED, PANEL, PANEL_LINE,
-                    TEXT)
+                    FONT, GAZE_DOT_TAU, GAZE_READY_WINDOW, ITI_DURATION,
+                    MUTED, PANEL, PANEL_LINE, TEXT)
 from errors import QuitExperiment, RecalibrateRequest
 from ui import Button, fit_text, rounded_rect, text
 
@@ -405,32 +406,35 @@ def run_ready(win, fixation, gaze):
         lineWidth=5,
     )
 
-    gaze_dot = visual.Circle(win, radius=10, units="pix", fillColor="#00e5ff",
-                             lineColor="black", lineWidth=2)
+    gaze_dot = visual.Circle(win, radius=9, units="pix", fillColor="#0099cc",
+                             lineColor="white", lineWidth=1.5, opacity=0.65)
     event.clearEvents()
     floor = core.Clock()
     drift_warned = False
     drift = None
     last_status = None
+    smooth = None
+    last_t = None
 
     while True:
         sample = gaze.poll()
         fresh = sample is not None and gaze.recent_gaze(GAZE_READY_WINDOW)
         drift = gaze.drift_px(DRIFT_WINDOW_S)
-        # Refresh the tracking status each frame.
+        # Refresh the tracking status only when the message changes.
         if gaze.seconds_since_valid() > FACE_LOST_AFTER:
-            status.text = ("Eye tracker cannot see you — please face the "
+            next_status = ("Eye tracker cannot see you — please face the "
                            "camera and keep your head still")
         elif drift_warned:
-            status.text = ("Gaze looks off-centre. Press R to recalibrate, "
+            next_status = ("Gaze looks off-centre. Press R to recalibrate, "
                            "or ENTER to continue anyway")
         else:
-            status.text = "Blue dot = your gaze. Look at the centre cross."
+            next_status = "Blue dot = your gaze. Look at the centre cross."
 
-        if status.text != last_status:
+        if next_status != last_status:
+            status.text = next_status
             status.height = 0.026
             fit_text(status, 1.0, 0.08)
-            last_status = status.text
+            last_status = next_status
 
         ready = (floor.getTime() >= FIXATION_DURATION
                  and gaze.recent_gaze(GAZE_READY_WINDOW))
@@ -441,9 +445,22 @@ def run_ready(win, fixation, gaze):
         if fresh:
             gaze_w, gaze_h = gaze.screen_size
             screen_w, screen_h = win.size
-            gaze_dot.pos = (sample[0] / gaze_w * screen_w - screen_w / 2,
-                            screen_h / 2 - sample[1] / gaze_h * screen_h)
+            tx = sample[0] / gaze_w * screen_w - screen_w / 2
+            ty = screen_h / 2 - sample[1] / gaze_h * screen_h
+            now = floor.getTime()
+            if smooth is None or GAZE_DOT_TAU <= 0:
+                smooth = (tx, ty)
+            else:
+                dt = max(now - last_t, 1e-6)
+                alpha = 1.0 - math.exp(-dt / GAZE_DOT_TAU)
+                smooth = (smooth[0] + alpha * (tx - smooth[0]),
+                          smooth[1] + alpha * (ty - smooth[1]))
+            last_t = now
+            gaze_dot.pos = smooth
             gaze_dot.draw()
+        else:
+            smooth = None
+            last_t = None
         fixation.draw()
         hint.draw()
         status.draw()

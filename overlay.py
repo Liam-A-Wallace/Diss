@@ -27,10 +27,12 @@ def setup(win, gaze, enabled):
     if enabled:
         _dot = visual.Circle(
             win,
-            radius=25,
+            radius=14,
             units="pix",
-            fillColor="red",
-            lineColor=None,
+            fillColor="#0099cc",
+            lineColor="white",
+            lineWidth=1.5,
+            opacity=0.45,
         )
 
 
@@ -63,7 +65,7 @@ def draw():
 
     # Smooth the dot using elapsed time. A larger tau adds more lag.
     now = core.getTime()
-    if _smooth is None:
+    if _smooth is None or GAZE_DOT_TAU <= 0:
         _smooth = (target_x, target_y)
         _last_t = now
     else:

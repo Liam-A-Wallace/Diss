@@ -140,9 +140,11 @@ def stimulus_paths(data_dir):
     return paths
 
 
-def make_aois(data_dir, aoi_dir):
+def make_aois(data_dir, aoi_dir, detailed=False):
     from analysis.face_aois import MODEL, generate
-    for module in ("torch", "transformers", "huggingface_hub"):
+    if detailed:
+        from analysis.detailed_aois import generate
+    for module in ("torch", "transformers", "huggingface_hub") + (("mediapipe",) if detailed else ()):
         if importlib.util.find_spec(module) is None:
             raise ValueError("AOI generation needs a one-off installation: python -m pip install -r requirements-aois.txt")
     paths = stimulus_paths(data_dir)
@@ -155,7 +157,9 @@ def make_aois(data_dir, aoi_dir):
         print("Downloading the face-parsing model once. Stimulus images stay on this computer.")
         snapshot_download(MODEL, local_dir=model_dir, allow_patterns=["*.json", "*.safetensors"])
     generate(paths, model_dir, aoi_dir)
-    print("AOIs are ready to inspect. Next: python analyse.py review" + (" --test" if data_dir.name == "test" else ""))
+    print("AOIs are ready to inspect. Next: python analyse.py review"
+          + (" --test" if data_dir.name == "test" else "")
+          + (" --detailed" if detailed else ""))
 
 
 def review_aois(aoi_dir, open_report=True):
@@ -179,11 +183,24 @@ def review_aois(aoi_dir, open_report=True):
             if set(np.unique(pixels)) - set(map(int, manifest["labels"])):
                 raise ValueError("Unknown label IDs in " + str(mask_path))
             preview_path = aoi_dir / (digest + "_review.png")
-            preview(im.convert("RGB"), pixels, preview_path)
+            preview(im.convert("RGB"), pixels, preview_path, manifest["labels"])
         reviewed_hashes[digest] = sha256(mask_path)
         items.append((source.name, preview_path, True, " ".join(record.get("notes", []))))
+        if str(manifest.get("schema_version")).startswith("detailed-v4"):
+            for suffix, title in (
+                ("_solid.png", "Opaque labels: exact legend colours; grey is uncertain"),
+                ("_raw_review.png", "Raw parser: no confidence rejection or derived geometry"),
+                ("_landmarks.png", "Raw MediaPipe landmarks"),
+                ("_confidence.png", "Parser confidence: black=0, white=1"),
+            ):
+                diagnostic = aoi_dir / (digest + suffix)
+                if diagnostic.exists():
+                    items.append((source.name + " - " + title, diagnostic, True, ""))
     report = gallery(aoi_dir / "index.html", "Review facial AOIs",
-                     "Inspect every image. Forehead and hairline are approximations. Return to the terminal after checking the masks.", items)
+                     "Inspect every image and its flags. Labels ending in derived are geometric approximations. "
+                     + ("Sides refer to the displayed image. Grey means uncertain. "
+                        if str(manifest.get("schema_version")).startswith("detailed-") else "")
+                     + "Return to the terminal after checking the masks.", items)
     print("AOI gallery:", report)
     if open_report:
         webbrowser.open(report.resolve().as_uri())
@@ -197,7 +214,13 @@ def review_aois(aoi_dir, open_report=True):
         record.update(reviewed=True, reviewed_mask_sha256=reviewed_hashes[digest],
                       reviewed_at=datetime.now(timezone.utc).isoformat())
     save_manifest(path, manifest)
-    print("AOI review saved. Run python analyse.py" + (" --test" if aoi_dir.name == "test" else ""))
+    detailed = str(manifest.get("schema_version")).startswith("detailed-")
+    test = (aoi_dir.parent.name if detailed else aoi_dir.name) == "test"
+    manual = manifest.get("schema_version") == "detailed-v4-manual"
+    print("AOI review saved. Run python analyse.py"
+          + (" --test" if test else "")
+          + (" --detailed" if detailed else "")
+          + (" --manual" if manual else ""))
 
 
 def analysis_summary(features, settings):
@@ -269,7 +292,15 @@ def analyse(base, aoi_dir, plots=True, open_report=True, *, sample_max_gap_ms=10
                     "link_decisions.csv": "Every consecutive fixation pair, including rejected links and reasons"}
     items = [(p.name, p, False, descriptions.get(p.name, "Analysis table"))
              for p in sorted((output / "data_results").glob("*.csv"))]
-    items += [(p.name, p, True, "Numbered exploratory fixations. Arrows show order; dashed arrows indicate longer intervals within a segment. Tracking breaks and view changes stop paths.") for p in sorted(output.glob("*_qc.png"))]
+    def _qc_sort_key(path):
+        stem = path.stem
+        if stem.startswith("trial_") and stem.endswith("_qc"):
+            num = stem[len("trial_"):-len("_qc")]
+            if num.isdigit():
+                return (0, int(num), path.name)
+        return (1, 0, path.name)
+
+    items += [(p.name, p, True, "Numbered exploratory fixations. Arrows show order; dashed arrows indicate longer intervals within a segment. Tracking breaks and view changes stop paths.") for p in sorted(output.glob("*_qc.png"), key=_qc_sort_key)]
     report = gallery(output / "index.html", "Gaze analysis: " + base.name,
                      str(len(features)) + " trials. Practice and interrupted trials are flagged in the tables. " +
                      ("Reviewed AOI masks used." if aois else "No AOIs used; regions are labelled unmapped."),
@@ -281,10 +312,79 @@ def analyse(base, aoi_dir, plots=True, open_report=True, *, sample_max_gap_ms=10
     return output
 
 
+def _find_processed_sessions(data_dir, explicit_paths, use_all=False):
+    processed_root = ROOT / "processed"
+    if explicit_paths:
+        return [Path(p) if Path(p).is_absolute() else ROOT / p for p in explicit_paths]
+    if not processed_root.is_dir():
+        raise ValueError("No processed sessions found. Run python analyse.py first.")
+    candidates = [
+        p for p in processed_root.iterdir()
+        if p.is_dir() and (p / "data_results" / "features.csv").is_file()
+        and (p / "analysis.json").is_file()
+    ]
+    if not candidates:
+        raise ValueError("No processed sessions found in processed/. Run python analyse.py first.")
+    if use_all:
+        # Keep only sessions recorded under data_dir so --all never mixes data/test into data/.
+        target_parent = data_dir.resolve()
+        by_source = {}
+        for p in sorted(candidates, key=lambda item: item.stat().st_mtime_ns):
+            info = json.loads((p / "analysis.json").read_text(encoding="utf-8"))
+            source = info.get("source_session")
+            if not source or Path(source).resolve().parent != target_parent:
+                continue
+            by_source[source] = p
+        if not by_source:
+            hint = " --test" if data_dir.name == "test" else ""
+            raise ValueError(f"No processed sessions found for {data_dir}. Run python analyse.py{hint} first.")
+        return list(by_source.values())
+    # Match the latest session in data_dir if one exists, otherwise the newest processed folder.
+    try:
+        base = latest_session(data_dir)
+        matching = [
+            p for p in candidates
+            if p.name == base.name or p.name.startswith(base.name + "_")
+        ]
+        if matching:
+            return [max(matching, key=lambda item: item.stat().st_mtime_ns)]
+    except ValueError:
+        pass
+    return [max(candidates, key=lambda item: item.stat().st_mtime_ns)]
+
+
+def make_summary(data_dir, explicit_paths, use_all=False, plots=True, open_report=True, early_ms=3000.0):
+    from analysis.summary import summarise
+    dirs = _find_processed_sessions(data_dir, explicit_paths, use_all=use_all)
+    if plots and importlib.util.find_spec("matplotlib") is None:
+        print("Plots unavailable. Saving CSVs; install plots with: python -m pip install -r requirements.txt")
+        plots = False
+    label = dirs[0].name + "_summary" if len(dirs) == 1 else f"study_summary_{len(dirs)}_sessions"
+    output = unused_output(Path(label))
+    report = summarise(dirs, output, plots=plots, early_ms=early_ms)
+    print("Summarised sessions:", ", ".join(p.name for p in dirs))
+    print("Summary report:", report)
+    print("CSV folder:", output / "data_results")
+    if open_report:
+        webbrowser.open(report.resolve().as_uri())
+    return output
+
+
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Analyse the latest experiment, generate AOIs, or review them.")
-    parser.add_argument("target", nargs="?", default="latest", help="latest (default), aois, review, or a session base path")
+    parser = argparse.ArgumentParser(description="Analyse the latest experiment, generate AOIs, review them, or build a study summary.")
+    parser.add_argument("target", nargs="?", default="latest",
+                        help="latest (default), aois, review, edit, summary, or a session base path")
+    parser.add_argument("sessions", nargs="*",
+                        help="optional processed session folders for `summary`")
     parser.add_argument("--test", action="store_true", help="use data/test and aois/test")
+    parser.add_argument("--detailed", action="store_true",
+                        help="use versioned detailed-v4 AOIs for generation, review and analysis")
+    parser.add_argument("--manual", action="store_true",
+                        help="review/analyse manual landmark corrections (implies --detailed)")
+    parser.add_argument("--all", action="store_true",
+                        help="for `summary`: aggregate the latest report for every processed session")
+    parser.add_argument("--early-ms", type=float, default=3000.0,
+                        help="for `summary`: early gaze cutoff in ms (default: 3000 ms)")
     parser.add_argument("--no-open", action="store_true", help="save the report without opening a browser")
     parser.add_argument("--no-plots", action="store_true", help="CSV analysis only")
     parser.add_argument("--sample-max-gap-ms", type=float, default=100,
@@ -299,9 +399,27 @@ def main(argv=None):
     args = parser.parse_args(argv)
     data_dir = ROOT / "data" / "test" if args.test else ROOT / "data"
     aoi_dir = ROOT / "aois" / ("test" if args.test else "main")
+    if args.manual:
+        args.detailed = True
+    if args.detailed:
+        aoi_dir = aoi_dir / "detailed-v4"
+    automatic_dir = aoi_dir
+    if args.manual:
+        aoi_dir = aoi_dir.with_name("detailed-v4-manual")
     try:
-        if args.target == "aois":
-            make_aois(data_dir, aoi_dir)
+        if args.target == "summary":
+            make_summary(data_dir, args.sessions, use_all=args.all,
+                         plots=not args.no_plots, open_report=not args.no_open,
+                         early_ms=args.early_ms)
+        elif args.target == "edit":
+            if not args.detailed:
+                raise ValueError("The landmark editor needs --detailed (add --test for test data)")
+            from tools.landmark_editor import serve
+            serve(automatic_dir, automatic_dir.with_name("detailed-v4-manual"), not args.no_open)
+        elif args.target == "aois":
+            if args.manual:
+                raise ValueError("Create manual corrections with python analyse.py edit --detailed instead")
+            make_aois(data_dir, aoi_dir, detailed=args.detailed)
         elif args.target == "review":
             review_aois(aoi_dir, not args.no_open)
         else:

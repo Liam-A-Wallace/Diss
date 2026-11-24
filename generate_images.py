@@ -79,9 +79,11 @@ def make_prompts(count, seed, start_pair=0):
     return rows
 
 
-def plan_log(path, count, settings):
+def plan_log(path, count, settings, append_seed=None):
     """Resume the saved plan, appending prompts when the target increases."""
     if not path.exists():
+        if append_seed is not None:
+            raise ValueError("Use --seed for a new folder.")
         return dict(settings=settings, prompt_batches=[count], images=[
             dict(r, status="pending") for r in make_prompts(count, settings["seed"])])
 
@@ -90,12 +92,14 @@ def plan_log(path, count, settings):
         raise ValueError("Settings changed. Use the original settings or a new --out folder.")
     # Older logs contain a single batch and need no manual conversion.
     batches = log.get("prompt_batches", [len(log["images"])])
-    if (not batches or any(type(n) is not int or n < 2 or n % 2 for n in batches)
-            or sum(batches) != len(log["images"])):
+    batch_sizes = [batch["count"] if isinstance(batch, dict) else batch for batch in batches]
+    if (not batches or any(type(n) is not int or n < 2 or n % 2 for n in batch_sizes)
+            or sum(batch_sizes) != len(log["images"])):
         raise ValueError("Invalid prompt batch history in prompts.json.")
     expected = []
-    for batch_count in batches:
-        expected.extend(make_prompts(batch_count, settings["seed"], len(expected) // 2))
+    for batch, batch_count in zip(batches, batch_sizes):
+        batch_seed = batch["seed"] if isinstance(batch, dict) else settings["seed"]
+        expected.extend(make_prompts(batch_count, batch_seed, len(expected) // 2))
     if [{"id": r["id"], "prompt": r["prompt"]} for r in log["images"]] != expected:
         raise ValueError("Prompts changed. Restore the original templates or use a new --out folder.")
     previous_count = len(log["images"])
@@ -104,9 +108,13 @@ def plan_log(path, count, settings):
                          f"Use --count {previous_count} to resume, or a larger total to add pairs.")
     if count > previous_count:
         added_count = count - previous_count
-        new_rows = make_prompts(added_count, settings["seed"], previous_count // 2)
+        batch_seed = settings["seed"] if append_seed is None else append_seed
+        new_rows = make_prompts(added_count, batch_seed, previous_count // 2)
         log["images"].extend(dict(r, status="pending") for r in new_rows)
-        batches = [*batches, added_count]
+        new_batch = added_count if append_seed is None else dict(count=added_count, seed=append_seed)
+        batches = [*batches, new_batch]
+    elif append_seed is not None:
+        raise ValueError("Increase --count to append a batch, or omit --append-seed to resume.")
     log["prompt_batches"] = batches
     return log
 
@@ -125,6 +133,8 @@ def main(argv=None):
     parser.add_argument("--limit", type=int, help="Maximum new images this run; use 4 for the pilot")
     parser.add_argument("--seed", type=int,
                         help="Prompt seed (default: random for a new folder; reuse saved seed on resume)")
+    parser.add_argument("--append-seed", type=int,
+                        help="Use a fresh prompt seed when increasing --count in an existing API folder")
     parser.add_argument("--model", default="gpt-image-2.6-sunburst",
                         help="OpenAI model, sd3.5-large, stylegan2, or stylegan3")
     parser.add_argument("--quality", choices=["low", "medium", "high", "xhigh", "max"], default="medium")
@@ -147,6 +157,8 @@ def main(argv=None):
             args.seed = (json.loads(saved_plan.read_text(encoding='utf-8'))['settings']['seed']
                          if saved_plan.exists() else random.SystemRandom().randrange(2**31))
         if args.model in ("sd3.5-large", "stylegan2", "stylegan3"):
+            if args.append_seed is not None:
+                raise ValueError("--append-seed is only supported for OpenAI image generation.")
             from local_generation import run_local
             if args.out is None:
                 args.out = ROOT / "stimuli" / args.model.replace(".", "_")
@@ -155,7 +167,7 @@ def main(argv=None):
             args.out = ROOT / "stimuli/generated_openai"
         settings = dict(seed=args.seed, model=args.model, quality=args.quality, size="1024x1024")
         path = args.out / "prompts.json"
-        log = plan_log(path, args.count, settings)
+        log = plan_log(path, args.count, settings, args.append_seed)
         # Keep the original prompt plan reproducible, but always request A then B.
         ordered_rows = sorted(log["images"], key=lambda row: (
             int(row["id"].split("_")[1]), row["id"].rsplit("_", 1)[1]))
